@@ -36,7 +36,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.lines': '{n} 行',
     'app.lastApplied': '上次应用：{time}',
     'app.mobileHint':
-      '移动端暂无法直接修改系统 hosts：开关仅保存启用状态，映射生效（DNS 代理）将在后续版本提供。',
+      '移动端无法直接修改系统 hosts：启用 profile 后请在「选项 → DNS 代理」启动本地 DNS 服务器（未接入 VPN 隧道前映射仅本机生效）。',
     'status.saving': '保存中…',
     'status.saved': '已自动保存',
     'status.error': '保存失败',
@@ -98,6 +98,36 @@ const messages: Record<Locale, Record<string, string>> = {
     'options.proxy.hint': '代理仅用于拉取远程 hosts，不影响系统其他网络。',
     'options.proxy.autoRefresh': '启动时自动刷新',
     'options.proxy.autoRefreshHint': '应用启动时自动拉取已启用远程 hosts 的最新内容',
+
+    // DNS 代理（内置本地 DNS 服务器）
+    'options.tab.dns': 'DNS 代理',
+    'options.dns.running': '运行中',
+    'options.dns.stopped': '未运行',
+    'options.dns.start': '启动',
+    'options.dns.stop': '停止',
+    'options.dns.refresh': '刷新状态',
+    'options.dns.listenAddr': '监听地址',
+    'options.dns.mappings': '生效映射',
+    'options.dns.hitCount': '命中映射',
+    'options.dns.forwardCount': '转发上游',
+    'options.dns.upstreamList': '上游服务器',
+    'options.dns.upstream': '上游 DNS',
+    'options.dns.upstreamPlaceholder': '留空自动探测（如 223.5.5.5, 8.8.8.8）',
+    'options.dns.port': '监听端口',
+    'options.dns.portHint': '默认 {port}（非特权端口，无需 root / 管理员权限）',
+    'options.dns.autoStart': '启动时自动运行',
+    'options.dns.autoStartHint': '应用启动时自动开启本地 DNS 服务器',
+    'options.dns.hint':
+      '本地 DNS 服务器会把启用 profile 中的域名直接解析为映射 IP，其余查询转发给上游 DNS。',
+    'options.dns.verifyHint': '本机验证：nslookup -port={port} 域名 127.0.0.1',
+    'options.dns.tunnelOk': 'VPN 隧道已接管系统 DNS，映射对全系统生效。',
+    'options.dns.tunnelPending':
+      '尚未接管系统 DNS：移动端需接入 VPN 隧道（Android VpnService / iOS Network Extension）后才会全局生效。',
+    'options.dns.started': 'DNS 代理已启动',
+    'options.dns.stoppedMsg': 'DNS 代理已停止',
+    'options.dns.startFailed': '启动 DNS 代理失败: {msg}',
+    'options.dns.stopFailed': '停止 DNS 代理失败: {msg}',
+    'options.dns.statusFailed': '获取 DNS 代理状态失败: {msg}',
 
     // 高级
     'advanced.platformInfo': '平台信息',
@@ -201,7 +231,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.lines': '{n} lines',
     'app.lastApplied': 'Last applied: {time}',
     'app.mobileHint':
-      'Mobile cannot edit the system hosts directly: the switch only saves the enabled state. Hosts mapping (DNS proxy) will arrive in a future version.',
+      'Mobile cannot edit the system hosts directly: enable a profile, then start the local DNS server in Options → DNS Proxy (mappings stay local until the VPN tunnel is wired up).',
     'status.saving': 'Saving…',
     'status.saved': 'Auto-saved',
     'status.error': 'Save failed',
@@ -264,6 +294,36 @@ const messages: Record<Locale, Record<string, string>> = {
     'options.proxy.hint': 'The proxy is only used to fetch remote hosts and does not affect other network traffic.',
     'options.proxy.autoRefresh': 'Auto refresh on startup',
     'options.proxy.autoRefreshHint': 'Automatically fetch the latest content of enabled remote hosts on launch',
+
+    // DNS proxy (built-in local DNS server)
+    'options.tab.dns': 'DNS Proxy',
+    'options.dns.running': 'Running',
+    'options.dns.stopped': 'Stopped',
+    'options.dns.start': 'Start',
+    'options.dns.stop': 'Stop',
+    'options.dns.refresh': 'Refresh status',
+    'options.dns.listenAddr': 'Listen address',
+    'options.dns.mappings': 'Active mappings',
+    'options.dns.hitCount': 'Mapped answers',
+    'options.dns.forwardCount': 'Forwarded',
+    'options.dns.upstreamList': 'Upstream servers',
+    'options.dns.upstream': 'Upstream DNS',
+    'options.dns.upstreamPlaceholder': 'Empty = auto-detect (e.g. 223.5.5.5, 8.8.8.8)',
+    'options.dns.port': 'Listen port',
+    'options.dns.portHint': 'Default {port} (unprivileged port, no root / admin required)',
+    'options.dns.autoStart': 'Run on startup',
+    'options.dns.autoStartHint': 'Start the local DNS server automatically when the app launches',
+    'options.dns.hint':
+      'The local DNS server answers domains found in enabled profiles with their mapped IPs and forwards everything else to the upstream DNS.',
+    'options.dns.verifyHint': 'Verify locally: nslookup -port={port} domain 127.0.0.1',
+    'options.dns.tunnelOk': 'The VPN tunnel has taken over system DNS; mappings apply system-wide.',
+    'options.dns.tunnelPending':
+      'System DNS is not captured yet: on mobile a VPN tunnel (Android VpnService / iOS Network Extension) is required for system-wide effect.',
+    'options.dns.started': 'DNS proxy started',
+    'options.dns.stoppedMsg': 'DNS proxy stopped',
+    'options.dns.startFailed': 'Failed to start DNS proxy: {msg}',
+    'options.dns.stopFailed': 'Failed to stop DNS proxy: {msg}',
+    'options.dns.statusFailed': 'Failed to read DNS proxy status: {msg}',
 
     // Advanced
     'advanced.platformInfo': 'Platform info',

@@ -26,9 +26,18 @@ export interface BackupRecord {
 
 export interface ProxyStatus {
   running: boolean
+  /** 本地 DNS 服务器监听地址（如 127.0.0.1:5353） */
   listen_addr: string | null
+  /** 命中映射并直接应答的查询数 */
   hit_count: number
+  /** 转发到上游的查询数 */
   forward_count: number
+  /** 当前生效的映射条数（来自所有启用 profile） */
+  mapping_count: number
+  /** 上游 DNS 服务器 */
+  upstream: string[]
+  /** 移动端 VPN 隧道是否已接管系统 DNS（桌面端恒为 false） */
+  tunnel_active: boolean
 }
 
 export type ExportFormat = 'hosts' | 'json'

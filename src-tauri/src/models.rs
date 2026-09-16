@@ -54,15 +54,22 @@ pub struct BackupRecord {
     pub source_path: String,
 }
 
-/// DNS 代理运行状态（移动端）
+/// DNS 代理运行状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyStatus {
     pub running: bool,
+    /// 本地 DNS 服务器监听地址（如 127.0.0.1:5353）
     pub listen_addr: Option<String>,
-    /// 命中映射次数
+    /// 命中映射并直接应答的查询数
     pub hit_count: u64,
-    /// 转发上游次数
+    /// 转发到上游的查询数
     pub forward_count: u64,
+    /// 当前生效的映射条数（来自所有启用 profile）
+    pub mapping_count: usize,
+    /// 上游 DNS 服务器
+    pub upstream: Vec<String>,
+    /// 移动端 VPN 隧道是否已接管系统 DNS（桌面端恒为 false）
+    pub tunnel_active: bool,
 }
 
 impl Default for ProxyStatus {
@@ -72,6 +79,9 @@ impl Default for ProxyStatus {
             listen_addr: None,
             hit_count: 0,
             forward_count: 0,
+            mapping_count: 0,
+            upstream: Vec::new(),
+            tunnel_active: false,
         }
     }
 }

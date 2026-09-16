@@ -37,6 +37,15 @@ pub struct AppSettings {
     /// 写入系统 hosts 的模式：append（托管块追加，保留原有条目）/ overwrite（完全替换）
     #[serde(default = "default_write_mode")]
     pub write_mode: String,
+    /// DNS 代理：启动应用时自动运行
+    #[serde(default)]
+    pub dns_proxy_auto_start: bool,
+    /// DNS 代理监听端口（0 = 使用默认端口）
+    #[serde(default)]
+    pub dns_proxy_port: u16,
+    /// DNS 代理上游 DNS 服务器（逗号分隔；空 = 自动探测系统 DNS）
+    #[serde(default)]
+    pub dns_upstream: String,
 }
 
 fn default_lang() -> String {

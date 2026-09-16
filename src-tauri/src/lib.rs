@@ -5,7 +5,6 @@
 
 pub mod commands;
 pub mod dns_flush;
-#[cfg(feature = "dns-proxy")]
 pub mod dns_proxy;
 pub mod hosts_path;
 pub mod import_export;
@@ -162,6 +161,12 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 commands::spawn_remote_auto_refresh_loop(handle).await;
+            });
+
+            // DNS 代理：按设置自动启动（移动端映射生效的前提）
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                commands::auto_start_dns_proxy(handle).await;
             });
 
             Ok(())

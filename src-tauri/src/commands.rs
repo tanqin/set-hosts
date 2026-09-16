@@ -3,10 +3,12 @@
 //! SwitchHosts 风格：每个 profile 存储原始 hosts 文本，
 //! 启用的 profile 的内容会被合并写入系统 hosts 的「托管块」。
 
-use std::sync::Mutex;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use tauri::State;
 
+use crate::dns_proxy::{self, DnsProxy};
 use crate::models::{
     BackupRecord, Config, ExportFormat, HostEntry, ImportSummary, Profile, ProxyStatus,
 };
@@ -14,14 +16,32 @@ use crate::models::{
 /// 应用全局状态
 pub struct AppState {
     pub config: Mutex<Config>,
+    /// DNS 代理状态（移动端让 hosts 映射生效；桌面端可用于调试）
+    pub proxy: Arc<DnsProxy>,
 }
 
 impl AppState {
     pub fn new(config: Config) -> Self {
         Self {
             config: Mutex::new(config),
+            proxy: DnsProxy::shared(),
         }
     }
+}
+
+/// 用当前配置（所有启用 profile）重建 DNS 代理映射表，返回映射条数
+///
+/// 配置变更（启停 profile、编辑内容、删除、刷新远程 hosts、导入）后都应调用，
+/// 保证 DNS 代理与系统 hosts 的映射始终一致。
+pub fn refresh_proxy_mappings(state: &AppState) -> usize {
+    let mappings = match state.config.lock() {
+        Ok(cfg) => dns_proxy::mappings_from_config(&cfg),
+        Err(e) => {
+            log::warn!("重建 DNS 代理映射失败: {}", e);
+            return 0;
+        }
+    };
+    state.proxy.set_mappings(mappings)
 }
 
 // ============ Profile 管理 ============
@@ -101,6 +121,9 @@ pub async fn delete_profile(
         crate::store::save_config(&app, &cfg)?;
     }
 
+    // 配置已变化：同步 DNS 代理映射（移除被删 profile 的条目）
+    refresh_proxy_mappings(&state);
+
     // 若被删除的 profile 处于启用状态，重新写入系统 hosts（移除其条目）
     if was_enabled && crate::hosts_path::is_desktop() {
         let merged = build_merged_hosts(&app, &state)?;
@@ -145,7 +168,12 @@ pub fn save_profile_content(
     let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
     let profile = cfg.profile_mut(&profile_id).ok_or("profile 不存在")?;
     profile.content = content;
-    crate::store::save_config(&app, &cfg)
+    crate::store::save_config(&app, &cfg)?;
+    drop(cfg);
+
+    // 内容变更后同步 DNS 代理映射（若该 profile 已启用，新条目立即生效）
+    refresh_proxy_mappings(&state);
+    Ok(())
 }
 
 /// 切换 profile 启用状态：
@@ -172,6 +200,8 @@ pub async fn toggle_profile(
         }
         crate::store::save_config(&app, &cfg)?;
     } // 锁在此处释放
+
+    refresh_proxy_mappings(&state);
 
     if !crate::hosts_path::is_desktop() {
         return Ok(format!(
@@ -203,6 +233,8 @@ pub async fn apply_profile(
         profile.last_applied_at = Some(chrono::Utc::now().to_rfc3339());
         crate::store::save_config(&app, &cfg).ok();
     }
+
+    refresh_proxy_mappings(&state);
 
     if !crate::hosts_path::is_desktop() {
         return Ok("已启用，请在设置中开启 DNS 代理使映射生效".to_string());
@@ -405,30 +437,111 @@ fn apply_import(
     let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
     *cfg = new_config;
     crate::store::save_config(&app, &cfg)?;
+    drop(cfg);
+
+    // 导入会整体替换配置：同步 DNS 代理映射
+    refresh_proxy_mappings(&state);
     Ok(summary)
 }
 
-// ============ DNS 代理（移动端） ============
+// ============ DNS 代理 ============
+//
+// 内置本地 DNS 服务器，把启用 profile 的映射直接应答，未命中的域名转发上游。
+// 移动端（Android/iOS）无法写入系统 hosts，靠它让映射生效（VPN 隧道接管系统 DNS）；
+// 桌面端也可手动启动，便于验证映射结果。
 
+/// 启动 DNS 代理（已在运行时按新参数重启），并记住端口 / 上游设置
 #[tauri::command]
-pub fn start_dns_proxy() -> Result<ProxyStatus, String> {
-    if !crate::hosts_path::is_mobile() {
-        return Err("桌面端无需启动 DNS 代理，可直接修改系统 hosts".to_string());
+pub async fn start_dns_proxy(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    port: Option<u16>,
+    upstream: Option<String>,
+) -> Result<ProxyStatus, String> {
+    let mut settings = crate::store::load_settings_public(&app);
+    if let Some(p) = port {
+        settings.dns_proxy_port = p;
     }
-    Err("DNS 代理将在 Phase 2 启用".to_string())
+    if let Some(u) = upstream {
+        settings.dns_upstream = u.trim().to_string();
+    }
+    crate::store::save_settings_public(&app, &settings)?;
+
+    // 启动前先按当前配置重建映射，保证首次查询即命中
+    let mapping_count = refresh_proxy_mappings(&state);
+
+    let port = if settings.dns_proxy_port == 0 {
+        dns_proxy::DEFAULT_PORT
+    } else {
+        settings.dns_proxy_port
+    };
+    let upstreams = dns_proxy::resolver::resolve_upstreams(&settings.dns_upstream);
+    if upstreams.is_empty() {
+        return Err("未能确定上游 DNS 服务器，请在选项中手动填写".to_string());
+    }
+
+    let bind = SocketAddr::from(([127, 0, 0, 1], port));
+    state.proxy.start(bind, upstreams).await?;
+    log::info!("DNS 代理已启动，映射 {} 条", mapping_count);
+
+    // 移动端：尝试通过 VPN 隧道把系统 DNS 指向本地服务器
+    if crate::hosts_path::is_mobile() {
+        if let Err(e) = crate::mobile::start_tunnel(port) {
+            log::warn!("启动 VPN 隧道失败: {}", e);
+        }
+    }
+
+    Ok(state.proxy.status())
 }
 
+/// 停止 DNS 代理
 #[tauri::command]
-pub fn stop_dns_proxy() -> Result<(), String> {
-    if !crate::hosts_path::is_mobile() {
-        return Err("桌面端无需 DNS 代理".to_string());
+pub async fn stop_dns_proxy(
+    _app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    if crate::hosts_path::is_mobile() {
+        if let Err(e) = crate::mobile::stop_tunnel() {
+            log::warn!("停止 VPN 隧道失败: {}", e);
+        }
     }
-    Err("DNS 代理将在 Phase 2 启用".to_string())
+    state.proxy.stop().await
 }
 
+/// 查询 DNS 代理运行状态
 #[tauri::command]
-pub fn get_proxy_status() -> Result<ProxyStatus, String> {
-    Ok(ProxyStatus::default())
+pub fn get_proxy_status(state: State<'_, AppState>) -> Result<ProxyStatus, String> {
+    Ok(state.proxy.status())
+}
+
+/// 启动时按设置自动运行 DNS 代理（失败仅记录日志，不影响应用启动）
+pub async fn auto_start_dns_proxy(app: tauri::AppHandle) {
+    use tauri::Manager;
+
+    let settings = crate::store::load_settings_public(&app);
+    if !settings.dns_proxy_auto_start {
+        return;
+    }
+
+    let state = app.state::<AppState>();
+    let mapping_count = refresh_proxy_mappings(&state);
+
+    let port = if settings.dns_proxy_port == 0 {
+        dns_proxy::DEFAULT_PORT
+    } else {
+        settings.dns_proxy_port
+    };
+    let upstreams = dns_proxy::resolver::resolve_upstreams(&settings.dns_upstream);
+    if upstreams.is_empty() {
+        log::warn!("DNS 代理未自动启动：未能确定上游 DNS 服务器");
+        return;
+    }
+
+    let bind = SocketAddr::from(([127, 0, 0, 1], port));
+    match state.proxy.start(bind, upstreams).await {
+        Ok(addr) => log::info!("DNS 代理已自动启动: {}（映射 {} 条）", addr, mapping_count),
+        Err(e) => log::error!("DNS 代理自动启动失败: {}", e),
+    }
 }
 
 // ============ 平台信息 ============
@@ -511,6 +624,9 @@ pub fn save_app_settings(
     proxy_port: Option<u16>,
     remote_auto_refresh: Option<bool>,
     write_mode: Option<String>,
+    dns_proxy_auto_start: Option<bool>,
+    dns_proxy_port: Option<u16>,
+    dns_upstream: Option<String>,
 ) -> Result<(), String> {
     let mut settings = crate::store::load_settings_public(&app);
     if let Some(lang) = language {
@@ -545,6 +661,15 @@ pub fn save_app_settings(
         if matches!(v.as_str(), "append" | "overwrite") {
             settings.write_mode = v;
         }
+    }
+    if let Some(v) = dns_proxy_auto_start {
+        settings.dns_proxy_auto_start = v;
+    }
+    if let Some(v) = dns_proxy_port {
+        settings.dns_proxy_port = v;
+    }
+    if let Some(v) = dns_upstream {
+        settings.dns_upstream = v.trim().to_string();
     }
     crate::store::save_settings_public(&app, &settings)
 }
@@ -696,6 +821,9 @@ pub async fn refresh_remote_profile(
         crate::store::save_config(&app, &cfg)?;
         cloned
     };
+
+    // 内容已更新：同步 DNS 代理映射
+    refresh_proxy_mappings(&state);
 
     // 已启用的远程 hosts 刷新后重新应用
     if was_enabled && crate::hosts_path::is_desktop() {

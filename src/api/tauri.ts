@@ -72,7 +72,9 @@ export const exportConfigToFile = (path: string, format: ExportFormat): Promise<
 export const importConfigFromFile = (path: string, format: ExportFormat): Promise<ImportSummary> =>
   invoke('import_config_from_file', { path, format })
 
-export const startDnsProxy = (): Promise<ProxyStatus> => invoke('start_dns_proxy')
+/** 启动 DNS 代理；port / upstream 传入后会持久化到设置 */
+export const startDnsProxy = (port?: number, upstream?: string): Promise<ProxyStatus> =>
+  invoke('start_dns_proxy', { port: port ?? null, upstream: upstream ?? null })
 
 export const stopDnsProxy = (): Promise<void> => invoke('stop_dns_proxy')
 
@@ -98,6 +100,9 @@ export interface AppSettingsPayload {
   proxy_port: number
   remote_auto_refresh: boolean
   write_mode: string
+  dns_proxy_auto_start: boolean
+  dns_proxy_port: number
+  dns_upstream: string
 }
 
 export const getAppSettings = (): Promise<AppSettingsPayload> => invoke('get_app_settings')
@@ -112,6 +117,9 @@ export const saveAppSettings = (params: {
   proxyPort?: number
   remoteAutoRefresh?: boolean
   writeMode?: string
+  dnsProxyAutoStart?: boolean
+  dnsProxyPort?: number
+  dnsUpstream?: string
 }): Promise<void> =>
   invoke('save_app_settings', {
     language: params.language ?? null,
@@ -123,6 +131,9 @@ export const saveAppSettings = (params: {
     proxyPort: params.proxyPort ?? null,
     remoteAutoRefresh: params.remoteAutoRefresh ?? null,
     writeMode: params.writeMode ?? null,
+    dnsProxyAutoStart: params.dnsProxyAutoStart ?? null,
+    dnsProxyPort: params.dnsProxyPort ?? null,
+    dnsUpstream: params.dnsUpstream ?? null,
   })
 
 // 开机自启（桌面端；移动端恒为 false / 空操作）
