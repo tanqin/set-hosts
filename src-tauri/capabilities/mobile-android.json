@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/android-schema.json",
+  "identifier": "mobile-android",
+  "description": "Set Hosts Android DNS 代理权限",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-execute",
+    "notification:default"
+  ]
+}
