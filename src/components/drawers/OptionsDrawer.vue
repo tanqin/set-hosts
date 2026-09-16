@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { openHostsFolder, getDataDir, changeDataDir } from '../../api/tauri'
-import { useSettingsStore } from '../../stores/settings'
+import { useSettingsStore, type WriteMode } from '../../stores/settings'
 import { t, type Locale } from '../../i18n'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -12,8 +12,10 @@ const emit = defineEmits<{ 'update:visible': [boolean] }>()
 const settingsStore = useSettingsStore()
 
 const activeTab = ref('general')
-const writeMode = ref<'append' | 'overwrite'>('append')
 const dataDir = ref('')
+
+// 移动端屏蔽桌面专属功能（开机自启 / 启动隐藏 / hosts 路径 / 数据目录迁移）
+const isMobile = computed(() => settingsStore.platform?.is_mobile ?? false)
 
 async function loadDataDir() {
   try {
@@ -49,6 +51,11 @@ function handleHideOnStartupChange(val: string | number | boolean) {
 
 function handleAutoStartChange(val: string | number | boolean) {
   settingsStore.setAutoStart(Boolean(val))
+}
+
+// 写入模式：立即持久化，下次写入系统 hosts 时生效
+function handleWriteModeChange(val: string | number | boolean) {
+  settingsStore.setWriteMode((val === 'overwrite' ? 'overwrite' : 'append') as WriteMode)
 }
 
 // ---- 代理设置（SwitchHosts 风格：拉取远程 hosts 用）----
@@ -124,20 +131,20 @@ async function handleChangeDataDir() {
               <el-option :label="t('options.theme.dark')" value="dark" />
             </el-select>
           </el-form-item>
-          <el-form-item :label="t('options.hideOnStartup')">
+          <el-form-item v-if="!isMobile" :label="t('options.hideOnStartup')">
             <el-switch :model-value="settingsStore.hideOnStartup" @change="handleHideOnStartupChange" />
             <div class="hint-text" style="margin: 0 4px">
               {{ t('options.hideOnStartupHint') }}
             </div>
           </el-form-item>
-          <el-form-item :label="t('options.autoStart')">
+          <el-form-item v-if="!isMobile" :label="t('options.autoStart')">
             <el-switch :model-value="settingsStore.autoStart" @change="handleAutoStartChange" />
             <div class="hint-text" style="margin: 0 4px">
               {{ t('options.autoStartHint') }}
             </div>
           </el-form-item>
-          <el-form-item :label="t('options.writeMode')">
-            <el-radio-group v-model="writeMode">
+          <el-form-item v-if="!isMobile" :label="t('options.writeMode')">
+            <el-radio-group :model-value="settingsStore.writeMode" @change="handleWriteModeChange">
               <el-radio value="append">{{ t('options.writeMode.append') }}</el-radio>
               <el-radio value="overwrite">{{ t('options.writeMode.overwrite') }}</el-radio>
             </el-radio-group>
@@ -220,7 +227,7 @@ async function handleChangeDataDir() {
           <el-descriptions-item :label="t('advanced.platformType')">
             {{ settingsStore.platform?.is_mobile ? t('advanced.mobile') : t('advanced.desktop') }}
           </el-descriptions-item>
-          <el-descriptions-item :label="t('advanced.hostsPath')">
+          <el-descriptions-item v-if="!isMobile" :label="t('advanced.hostsPath')">
             <span class="clickable-path" @click="handleOpenHostsFolder">
               {{ settingsStore.platform?.hosts_path ?? '—' }}
             </span>
@@ -233,7 +240,7 @@ async function handleChangeDataDir() {
           <el-descriptions-item :label="t('advanced.storageDir')">
             <div class="data-dir-row">
               <span class="data-dir-path" :title="dataDir">{{ dataDir || '—' }}</span>
-              <el-link type="primary" :underline="false" @click="handleChangeDataDir">
+              <el-link v-if="!isMobile" type="primary" :underline="false" @click="handleChangeDataDir">
                 {{ t('advanced.change') }}
               </el-link>
             </div>

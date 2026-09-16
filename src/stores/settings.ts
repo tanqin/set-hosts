@@ -16,6 +16,7 @@ import { setLocale, t, type Locale } from '../i18n'
 
 export type Theme = 'light' | 'dark'
 export type ProxyProtocol = 'http' | 'https' | 'socks5'
+export type WriteMode = 'append' | 'overwrite'
 
 export const useSettingsStore = defineStore('settings', () => {
   const platform = ref<PlatformInfo | null>(null)
@@ -32,6 +33,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const proxyHost = ref('')
   const proxyPort = ref(0)
   const remoteAutoRefresh = ref(true)
+  // 写入系统 hosts 的模式：追加（托管块）/ 覆盖（完全替换）
+  const writeMode = ref<WriteMode>('append')
 
   async function loadPlatform() {
     try {
@@ -55,6 +58,7 @@ export const useSettingsStore = defineStore('settings', () => {
       proxyHost.value = s.proxy_host
       proxyPort.value = s.proxy_port
       remoteAutoRefresh.value = s.remote_auto_refresh
+      writeMode.value = s.write_mode === 'overwrite' ? 'overwrite' : 'append'
     } catch {
       // 非 Tauri 环境（纯浏览器调试）使用默认值
     }
@@ -147,6 +151,16 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  /** 切换写入模式（追加 / 覆盖）：立即持久化，下次写入系统 hosts 时生效 */
+  async function setWriteMode(v: WriteMode) {
+    writeMode.value = v
+    try {
+      await saveAppSettings({ writeMode: v })
+    } catch (e: any) {
+      ElMessage.error(t('options.saveFailed', { msg: e }))
+    }
+  }
+
   async function exportData(format: ExportFormat): Promise<string> {
     return exportConfig(format)
   }
@@ -177,6 +191,7 @@ export const useSettingsStore = defineStore('settings', () => {
     proxyHost,
     proxyPort,
     remoteAutoRefresh,
+    writeMode,
     loadPlatform,
     loadAppSettings,
     setLanguage,
@@ -186,6 +201,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setAutoStart,
     saveProxySettings,
     setRemoteAutoRefresh,
+    setWriteMode,
     exportData,
     importData,
     readCurrentHosts,

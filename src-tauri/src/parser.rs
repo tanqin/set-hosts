@@ -3,7 +3,7 @@
 //! 为避免覆盖系统原有的 hosts 条目（如 127.0.0.1 localhost），
 //! 我们用一对标记块包裹「由 Set Hosts 管理」的条目，应用时只替换该块：
 //!
-//! ```
+//! ```text
 //! # >>> Set Hosts Managed >>>
 //! 192.168.1.1 dev.local
 //! # <<< Set Hosts Managed <<<
@@ -154,6 +154,25 @@ pub fn merge_managed_block(original: &str, entries: &[HostEntry]) -> String {
     out
 }
 
+/// 覆盖模式：生成仅含托管块的全新 hosts 内容（完全替换原文件）
+///
+/// 仍保留托管块标记，保证后续启用/禁用开关能正确识别并增删条目；
+/// 原有系统条目（如 127.0.0.1 localhost）会被丢弃，调用前应已做备份。
+pub fn build_overwrite_content(entries: &[HostEntry]) -> String {
+    let rendered = render_hosts_text(entries);
+
+    let mut out = String::new();
+    out.push_str(MANAGED_START);
+    out.push('\n');
+    if !rendered.is_empty() {
+        out.push_str(rendered.trim_end());
+        out.push('\n');
+    }
+    out.push_str(MANAGED_END);
+    out.push('\n');
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,5 +234,21 @@ mod tests {
         assert!(stripped.contains("::1 localhost"));
         assert!(!stripped.contains("10.0.0.1 old.local"));
         assert!(!stripped.contains(MANAGED_START));
+    }
+
+    #[test]
+    fn overwrite_content_replaces_everything() {
+        let entries = parse_hosts_text("192.168.1.1 dev.local");
+        let content = build_overwrite_content(&entries);
+
+        // 仅包含托管块与新条目
+        assert!(content.starts_with(MANAGED_START));
+        assert!(content.trim_end().ends_with(MANAGED_END));
+        assert!(content.contains("192.168.1.1 dev.local"));
+        // 可再次被 strip / merge 正常处理
+        assert!(strip_managed_block(&content).is_empty());
+        let remerged = merge_managed_block(&content, &entries);
+        assert_eq!(remerged.matches(MANAGED_START).count(), 1);
+        assert!(remerged.contains("192.168.1.1 dev.local"));
     }
 }

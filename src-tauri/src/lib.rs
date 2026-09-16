@@ -135,8 +135,14 @@ pub fn run() {
             app.manage(AppState::new(config));
 
             // 启动时隐藏窗口（窗口默认 visible: false，未开启则手动显示）
+            // 移动端不适用"启动隐藏"（无托盘可唤回，会导致白屏），始终显示
             let settings = store::load_settings_public(app.handle());
-            if !settings.hide_on_startup {
+            let show_on_startup = if cfg!(desktop) {
+                !settings.hide_on_startup
+            } else {
+                true
+            };
+            if show_on_startup {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                 }

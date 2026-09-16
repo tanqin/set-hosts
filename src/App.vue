@@ -34,6 +34,9 @@ const settingsStore = useSettingsStore()
 // Element Plus 组件文案随语言即时切换
 const elLocale = computed(() => (locale.value === 'zh-CN' ? zhCn : en))
 
+// 移动端：屏蔽依赖系统 hosts / 桌面文件对话框的功能入口
+const isMobile = computed(() => settingsStore.platform?.is_mobile ?? false)
+
 const currentContent = ref('')
 const settingsMenuVisible = ref(false)
 
@@ -165,6 +168,8 @@ const systemHostsHighlighted = computed(() => {
 })
 
 async function loadSystemHosts() {
+  // 移动端无法读取系统 hosts，不请求后端避免报错
+  if (isMobile.value) return
   systemHostsLoading.value = true
   try {
     systemHosts.value = await getCurrentHostsContent()
@@ -425,27 +430,39 @@ function openDrawer(key: keyof typeof drawers.value) {
   drawers.value[key] = true
 }
 
-const menuGroups = computed(() => [
-  {
-    title: t('app.menuGroup.system'),
-    items: [
-      { key: 'backup' as const, label: t('app.menu.backup'), icon: RefreshRight },
-    ],
-  },
-  {
-    title: t('app.menuGroup.data'),
-    items: [
-      { key: 'importExport' as const, label: t('app.menu.importExport'), icon: Upload },
-    ],
-  },
-  {
-    title: t('app.menuGroup.tools'),
-    items: [
-      { key: 'options' as const, label: t('app.menu.options'), icon: Grid },
-      { key: 'about' as const, label: t('app.menu.about'), icon: Setting },
-    ],
-  },
-])
+const menuGroups = computed(() => {
+  const groups = [
+    {
+      title: t('app.menuGroup.system'),
+      items: [
+        { key: 'backup' as const, label: t('app.menu.backup'), icon: RefreshRight },
+      ],
+    },
+    {
+      title: t('app.menuGroup.data'),
+      items: [
+        { key: 'importExport' as const, label: t('app.menu.importExport'), icon: Upload },
+      ],
+    },
+    {
+      title: t('app.menuGroup.tools'),
+      items: [
+        { key: 'options' as const, label: t('app.menu.options'), icon: Grid },
+        { key: 'about' as const, label: t('app.menu.about'), icon: Setting },
+      ],
+    },
+  ]
+  // 移动端：备份/还原、导入/导出依赖系统 hosts 与桌面文件对话框，屏蔽入口
+  if (isMobile.value) {
+    return groups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((i) => i.key !== 'backup' && i.key !== 'importExport'),
+      }))
+      .filter((g) => g.items.length > 0)
+  }
+  return groups
+})
 </script>
 
 <template>
@@ -474,6 +491,15 @@ const menuGroups = computed(() => [
           />
         </div>
       </div>
+
+      <!-- 移动端提示：无法直接修改系统 hosts -->
+      <el-alert
+        v-if="isMobile"
+        :title="t('app.mobileHint')"
+        type="warning"
+        :closable="false"
+        class="mobile-hint"
+      />
 
       <!-- 主体 -->
       <div class="body">
@@ -589,8 +615,8 @@ const menuGroups = computed(() => [
         </transition>
       </div>
 
-      <!-- 系统 Hosts 只读展示（占满底部全宽，高度可拖拽调整） -->
-      <div class="system-hosts-panel" v-loading="systemHostsLoading">
+      <!-- 系统 Hosts 只读展示（桌面端；移动端无法读取，隐藏） -->
+      <div v-if="!isMobile" class="system-hosts-panel" v-loading="systemHostsLoading">
         <div
           v-show="!systemHostsCollapsed"
           class="panel-resizer"
@@ -706,6 +732,12 @@ const menuGroups = computed(() => [
   border-bottom: 1px solid var(--el-border-color);
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* 移动端提示横幅 */
+.mobile-hint {
+  flex-shrink: 0;
+  margin: 4px 8px 0;
 }
 
 .titlebar-left,

@@ -97,6 +97,7 @@ export interface AppSettingsPayload {
   proxy_host: string
   proxy_port: number
   remote_auto_refresh: boolean
+  write_mode: string
 }
 
 export const getAppSettings = (): Promise<AppSettingsPayload> => invoke('get_app_settings')
@@ -110,6 +111,7 @@ export const saveAppSettings = (params: {
   proxyHost?: string
   proxyPort?: number
   remoteAutoRefresh?: boolean
+  writeMode?: string
 }): Promise<void> =>
   invoke('save_app_settings', {
     language: params.language ?? null,
@@ -120,6 +122,7 @@ export const saveAppSettings = (params: {
     proxyHost: params.proxyHost ?? null,
     proxyPort: params.proxyPort ?? null,
     remoteAutoRefresh: params.remoteAutoRefresh ?? null,
+    writeMode: params.writeMode ?? null,
   })
 
 // 开机自启（桌面端；移动端恒为 false / 空操作）

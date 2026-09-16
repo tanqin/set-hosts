@@ -253,7 +253,15 @@ fn build_merged_hosts(
     }
     drop(cfg);
 
-    Ok(crate::parser::merge_managed_block(&current, &all_entries))
+    // 按写入模式生成内容：
+    // - append：托管块追加到当前 hosts 末尾，保留系统原有条目
+    // - overwrite：仅托管块整体替换系统 hosts（备份已在上方创建）
+    let settings = crate::store::load_settings_public(app);
+    if settings.write_mode == "overwrite" {
+        Ok(crate::parser::build_overwrite_content(&all_entries))
+    } else {
+        Ok(crate::parser::merge_managed_block(&current, &all_entries))
+    }
 }
 
 /// 将合并内容写入系统 hosts（阻塞操作，应在 spawn_blocking 中调用）
@@ -273,12 +281,12 @@ pub fn backup_hosts(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<BackupRecord, String> {
+    // 移动端无法读取系统 hosts，创建空备份没有意义
+    if !crate::hosts_path::is_desktop() {
+        return Err("移动端不支持备份系统 hosts".to_string());
+    }
     let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
-    let content = if crate::hosts_path::is_desktop() {
-        crate::privilege::read_hosts_content().unwrap_or_default()
-    } else {
-        String::new()
-    };
+    let content = crate::privilege::read_hosts_content().unwrap_or_default();
     let source_path = crate::hosts_path::hosts_path()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_default();
@@ -502,6 +510,7 @@ pub fn save_app_settings(
     proxy_host: Option<String>,
     proxy_port: Option<u16>,
     remote_auto_refresh: Option<bool>,
+    write_mode: Option<String>,
 ) -> Result<(), String> {
     let mut settings = crate::store::load_settings_public(&app);
     if let Some(lang) = language {
@@ -530,6 +539,12 @@ pub fn save_app_settings(
     }
     if let Some(v) = remote_auto_refresh {
         settings.remote_auto_refresh = v;
+    }
+    if let Some(v) = write_mode {
+        let v = v.to_lowercase();
+        if matches!(v.as_str(), "append" | "overwrite") {
+            settings.write_mode = v;
+        }
     }
     crate::store::save_settings_public(&app, &settings)
 }

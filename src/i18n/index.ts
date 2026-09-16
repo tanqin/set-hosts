@@ -35,6 +35,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.systemHostsResizeHint': '拖动调整高度（最大为窗口高度的一半）',
     'app.lines': '{n} 行',
     'app.lastApplied': '上次应用：{time}',
+    'app.mobileHint':
+      '移动端暂无法直接修改系统 hosts：开关仅保存启用状态，映射生效（DNS 代理）将在后续版本提供。',
     'status.saving': '保存中…',
     'status.saved': '已自动保存',
     'status.error': '保存失败',
@@ -83,7 +85,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'options.writeMode.overwrite': '覆盖',
     'options.writeMode.appendHint':
       '追加：新条目添加到系统 hosts 末尾的托管块，保留原有条目。',
-    'options.writeMode.overwriteHint': '覆盖：用当前 profile 内容完全替换系统 hosts。',
+    'options.writeMode.overwriteHint': '覆盖：用当前启用 profile 的内容完全替换系统 hosts。',
     'options.saveFailed': '保存失败: {msg}',
 
     // 代理设置（SwitchHosts 风格，拉取远程 hosts 用）
@@ -198,6 +200,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.systemHostsResizeHint': 'Drag to resize (max: half of the window height)',
     'app.lines': '{n} lines',
     'app.lastApplied': 'Last applied: {time}',
+    'app.mobileHint':
+      'Mobile cannot edit the system hosts directly: the switch only saves the enabled state. Hosts mapping (DNS proxy) will arrive in a future version.',
     'status.saving': 'Saving…',
     'status.saved': 'Auto-saved',
     'status.error': 'Save failed',
@@ -247,7 +251,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'options.writeMode.appendHint':
       'Append: new entries are added to the managed block at the end of the system hosts, keeping existing entries.',
     'options.writeMode.overwriteHint':
-      'Overwrite: fully replace the system hosts with the current profile.',
+      'Overwrite: fully replace the system hosts with the content of enabled profiles.',
     'options.saveFailed': 'Failed to save: {msg}',
 
     // Proxy settings (SwitchHosts style, for fetching remote hosts)

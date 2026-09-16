@@ -34,6 +34,9 @@ pub struct AppSettings {
     /// 启动时自动刷新已启用的远程 hosts
     #[serde(default = "default_true")]
     pub remote_auto_refresh: bool,
+    /// 写入系统 hosts 的模式：append（托管块追加，保留原有条目）/ overwrite（完全替换）
+    #[serde(default = "default_write_mode")]
+    pub write_mode: String,
 }
 
 fn default_lang() -> String {
@@ -50,6 +53,10 @@ fn default_proxy_protocol() -> String {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_write_mode() -> String {
+    "append".to_string()
 }
 
 /// settings.json 路径（始终在 app_data_dir 下，保证可找到）
@@ -94,9 +101,14 @@ pub fn get_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
         std::fs::create_dir_all(&path).map_err(|e| format!("创建数据目录失败: {}", e))?;
         return Ok(path);
     }
-    // 默认: ~/.SetHosts
-    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
-    let dir = home.join(".SetHosts");
+    // 默认: ~/.SetHosts；Android 等平台无用户主目录时回退到系统 app_data_dir
+    let dir = match dirs::home_dir() {
+        Some(home) => home.join(".SetHosts"),
+        None => app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("获取数据目录失败: {}", e))?,
+    };
     std::fs::create_dir_all(&dir).map_err(|e| format!("创建数据目录失败: {}", e))?;
     Ok(dir)
 }
