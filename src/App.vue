@@ -949,6 +949,11 @@ const menuGroups = computed(() => {
   gap: 4px;
 }
 
+/* 桌面端标题栏「+」「设置」图标略大一点，便于识别与点击 */
+.app:not(.mobile) .titlebar :deep(.el-button .el-icon) {
+  font-size: 18px;
+}
+
 .app-title {
   font-size: 13px;
   font-weight: 600;
