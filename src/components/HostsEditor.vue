@@ -15,14 +15,20 @@ const textareaRef = ref<HTMLTextAreaElement>()
 const preRef = ref<HTMLPreElement>()
 const gutterRef = ref<HTMLDivElement>()
 
-const value = ref(props.modelValue)
+const value = ref(normalize(props.modelValue))
 
 watch(
   () => props.modelValue,
   (v) => {
-    if (v !== value.value) value.value = v
+    const nv = normalize(v)
+    if (nv !== value.value) value.value = nv
   },
 )
+
+/** 统一换行符为 \n：\r\n 会让 <pre> 高亮层比 <textarea> 多出换行，导致行号错位 */
+function normalize(v: string) {
+  return v.replace(/\r\n/g, '\n')
+}
 
 function onInput() {
   emit('update:modelValue', value.value)

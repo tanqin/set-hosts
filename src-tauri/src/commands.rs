@@ -1226,7 +1226,8 @@ async fn fetch_remote_content(app: &tauri::AppHandle, url: &str) -> Result<Strin
     if bytes.len() > 8 * 1024 * 1024 {
         return Err("内容超过 8MB 限制".to_string());
     }
-    Ok(String::from_utf8_lossy(&bytes).to_string())
+    // 统一换行符为 \n：CRLF 会导致编辑器高亮层与行号错位（\r 被渲染为额外换行）
+    Ok(String::from_utf8_lossy(&bytes).replace("\r\n", "\n"))
 }
 
 /// 新增远程 hosts profile，创建后立即拉取一次内容
