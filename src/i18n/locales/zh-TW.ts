@@ -46,6 +46,8 @@ export default {
   'app.remoteUrlHint': '將從該網址擷取 hosts 內容；若在選項中設定了代理，會透過代理擷取。',
   'app.remoteUrlRequired': '請輸入 URL',
   'app.remoteAdd': '新增並擷取',
+  'app.remoteSave': '儲存',
+  'app.editRemote': '編輯遠端 Hosts',
   'app.lastFetch': '上次擷取：{time}',
   'app.autoRefresh': '自動重新整理',
   'app.autoRefreshHint': '按所選間隔在背景自動擷取最新內容（應用程式執行期間生效）。',
@@ -59,6 +61,8 @@ export default {
   'profiles.remoteCreateFailed': '新增遠端 hosts 失敗: {msg}',
   'profiles.remoteRefreshed': '遠端 hosts 已重新整理',
   'profiles.remoteRefreshFailed': '重新整理遠端 hosts 失敗: {msg}',
+  'profiles.remoteUpdated': '遠端 hosts 已更新',
+  'profiles.remoteUpdateFailed': '更新遠端 hosts 失敗: {msg}',
 
   // 選項
   'options.title': '選項',

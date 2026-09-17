@@ -46,6 +46,8 @@ export default {
   'app.remoteUrlHint': '이 URL에서 hosts 콘텐츠를 가져옵니다. 옵션에서 프록시를 설정한 경우 프록시를 통해 가져옵니다.',
   'app.remoteUrlRequired': 'URL을 입력해 주세요',
   'app.remoteAdd': '추가 및 가져오기',
+  'app.remoteSave': '저장',
+  'app.editRemote': '원격 Hosts 편집',
   'app.lastFetch': '마지막 가져오기: {time}',
   'app.autoRefresh': '자동 새로 고침',
   'app.autoRefreshHint': '선택한 간격으로 백그라운드에서 자동으로 최신 콘텐츠를 가져옵니다 (앱 실행 중에만 적용).',
@@ -59,6 +61,8 @@ export default {
   'profiles.remoteCreateFailed': '원격 hosts 추가 실패: {msg}',
   'profiles.remoteRefreshed': '원격 hosts 새로 고침 완료',
   'profiles.remoteRefreshFailed': '원격 hosts 새로 고침 실패: {msg}',
+  'profiles.remoteUpdated': '원격 hosts가 업데이트되었습니다',
+  'profiles.remoteUpdateFailed': '원격 hosts 업데이트 실패: {msg}',
 
   // 옵션
   'options.title': '옵션',

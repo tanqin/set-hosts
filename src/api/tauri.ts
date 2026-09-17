@@ -29,6 +29,13 @@ export const createRemoteProfile = (
 export const refreshRemoteProfile = (profileId: string): Promise<Profile> =>
   invoke('refresh_remote_profile', { profileId })
 
+export const updateRemoteProfile = (
+  profileId: string,
+  name: string,
+  url: string,
+  autoRefreshSecs = 0,
+): Promise<Profile> => invoke('update_remote_profile', { profileId, name, url, autoRefreshSecs })
+
 export const deleteProfile = (id: string): Promise<void> =>
   invoke('delete_profile', { id })
 

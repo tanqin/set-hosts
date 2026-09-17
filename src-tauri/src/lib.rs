@@ -212,6 +212,7 @@ pub fn run() {
             commands::rename_profile,
             commands::create_remote_profile,
             commands::refresh_remote_profile,
+            commands::update_remote_profile,
             commands::get_profile_content,
             commands::save_profile_content,
             commands::toggle_profile,

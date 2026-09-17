@@ -46,6 +46,8 @@ export default {
   'app.remoteUrlHint': 'この URL から hosts の内容を取得します。オプションでプロキシを設定した場合はプロキシ経由で取得します。',
   'app.remoteUrlRequired': 'URL を入力してください',
   'app.remoteAdd': '追加して取得',
+  'app.remoteSave': '保存',
+  'app.editRemote': 'リモート Hosts を編集',
   'app.lastFetch': '最終取得：{time}',
   'app.autoRefresh': '自動更新',
   'app.autoRefreshHint': '選択した間隔でバックグラウンドにて自動的に最新の内容を取得します（アプリの実行中のみ有効）。',
@@ -59,6 +61,8 @@ export default {
   'profiles.remoteCreateFailed': 'リモート hosts の追加に失敗しました：{msg}',
   'profiles.remoteRefreshed': 'リモート hosts を更新しました',
   'profiles.remoteRefreshFailed': 'リモート hosts の更新に失敗しました：{msg}',
+  'profiles.remoteUpdated': 'リモート hosts を更新しました',
+  'profiles.remoteUpdateFailed': 'リモート hosts の更新に失敗しました: {msg}',
 
   // オプション
   'options.title': 'オプション',

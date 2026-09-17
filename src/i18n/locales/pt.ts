@@ -46,6 +46,8 @@ export default {
   'app.remoteUrlHint': 'O conteúdo do Hosts será baixado desta URL; se houver proxy configurado nas Opções, ele será usado.',
   'app.remoteUrlRequired': 'Informe uma URL',
   'app.remoteAdd': 'Adicionar e baixar',
+  'app.remoteSave': 'Salvar',
+  'app.editRemote': 'Editar Hosts remoto',
   'app.lastFetch': 'Último download: {time}',
   'app.autoRefresh': 'Atualização automática',
   'app.autoRefreshHint': 'Baixar automaticamente o conteúdo mais recente em segundo plano no intervalo selecionado (enquanto o app estiver em execução).',
@@ -59,6 +61,8 @@ export default {
   'profiles.remoteCreateFailed': 'Falha ao adicionar Hosts remoto: {msg}',
   'profiles.remoteRefreshed': 'Hosts remoto atualizado',
   'profiles.remoteRefreshFailed': 'Falha ao atualizar Hosts remoto: {msg}',
+  'profiles.remoteUpdated': 'Hosts remoto atualizado',
+  'profiles.remoteUpdateFailed': 'Falha ao atualizar Hosts remoto: {msg}',
 
   // Opções
   'options.title': 'Opções',

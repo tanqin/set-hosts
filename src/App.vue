@@ -441,6 +441,11 @@ async function handleCreateProfile() {
 const remoteDialogVisible = ref(false)
 const remoteCreating = ref(false)
 const remoteForm = ref({ name: '', url: '', autoRefresh: 0 })
+/** 正在编辑的远程 profile id；null = 新增模式 */
+const remoteEditingId = ref<string | null>(null)
+const remoteDialogTitle = computed(() =>
+  remoteEditingId.value ? t('app.editRemote') : t('app.addRemote'),
+)
 
 /** 自动刷新间隔选项（秒）：0 = 从不，默认选中 */
 const autoRefreshOptions = [
@@ -454,7 +459,19 @@ const autoRefreshOptions = [
 ]
 
 function openRemoteDialog() {
+  remoteEditingId.value = null
   remoteForm.value = { name: '', url: '', autoRefresh: 0 }
+  remoteDialogVisible.value = true
+}
+
+/** 编辑远程 hosts：名称 / URL / 自动刷新三项均可修改 */
+function openEditRemoteDialog(p: Profile) {
+  remoteEditingId.value = p.id
+  remoteForm.value = {
+    name: p.name,
+    url: p.url ?? '',
+    autoRefresh: p.auto_refresh_secs ?? 0,
+  }
   remoteDialogVisible.value = true
 }
 
@@ -472,11 +489,28 @@ async function submitCreateRemote() {
   }
   remoteCreating.value = true
   try {
-    const p = await profilesStore.createRemote(name.trim() || url.trim(), url.trim(), autoRefresh)
-    if (p) {
-      await profilesStore.select(p.id)
-      currentContent.value = p.content
-      remoteDialogVisible.value = false
+    if (remoteEditingId.value) {
+      // 编辑模式：更新名称 / URL / 自动刷新
+      const updated = await profilesStore.updateRemote(
+        remoteEditingId.value,
+        name.trim(),
+        url.trim(),
+        autoRefresh,
+      )
+      if (updated) {
+        if (profilesStore.activeId === updated.id) currentContent.value = updated.content
+        remoteDialogVisible.value = false
+        // URL 变化后系统 hosts 已被重写，底部只读区需重新读取
+        loadSystemHosts()
+      }
+    } else {
+      // 新增模式
+      const p = await profilesStore.createRemote(name.trim() || url.trim(), url.trim(), autoRefresh)
+      if (p) {
+        await profilesStore.select(p.id)
+        currentContent.value = p.content
+        remoteDialogVisible.value = false
+      }
     }
   } finally {
     remoteCreating.value = false
@@ -660,7 +694,12 @@ const menuGroups = computed(() => {
               <el-tooltip v-if="p.is_remote" :content="t('app.refreshRemote')" placement="top">
                 <el-button text size="small" :icon="Refresh" @click="handleRefreshRemote(p.id)" />
               </el-tooltip>
-              <el-button text size="small" :icon="Edit" @click="handleRename(p.id, p.name)" />
+              <el-button
+                text
+                size="small"
+                :icon="Edit"
+                @click="p.is_remote ? openEditRemoteDialog(p) : handleRename(p.id, p.name)"
+              />
               <el-button
                 text
                 size="small"
@@ -732,7 +771,15 @@ const menuGroups = computed(() => {
                   :icon="Refresh"
                   @click="handleRefreshRemote(activeProfile.id)"
                 />
-                <el-button text :icon="Edit" @click="handleRename(activeProfile.id, activeProfile.name)" />
+                <el-button
+                  text
+                  :icon="Edit"
+                  @click="
+                    activeProfile.is_remote
+                      ? openEditRemoteDialog(activeProfile)
+                      : handleRename(activeProfile.id, activeProfile.name)
+                  "
+                />
                 <el-button text type="danger" :icon="Delete" @click="handleDelete(activeProfile.id)" />
               </div>
             </div>
@@ -822,7 +869,7 @@ const menuGroups = computed(() => {
       <!-- 新增远程 hosts 对话框 -->
       <el-dialog
         v-model="remoteDialogVisible"
-        :title="t('app.addRemote')"
+        :title="remoteDialogTitle"
         width="480px"
         :close-on-click-modal="!remoteCreating"
         :close-on-press-escape="!remoteCreating"
@@ -861,7 +908,7 @@ const menuGroups = computed(() => {
             {{ t('common.cancel') }}
           </el-button>
           <el-button type="primary" :loading="remoteCreating" @click="submitCreateRemote">
-            {{ t('app.remoteAdd') }}
+            {{ remoteEditingId ? t('app.remoteSave') : t('app.remoteAdd') }}
           </el-button>
         </template>
       </el-dialog>

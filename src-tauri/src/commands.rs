@@ -1316,6 +1316,77 @@ pub async fn refresh_remote_profile(
     Ok(profile)
 }
 
+/// 编辑远程 hosts：修改名称 / URL / 自动刷新间隔
+///
+/// URL 变化时立即拉取新内容；已启用的远程 hosts 在内容变化后重新写入系统 hosts
+#[tauri::command]
+pub async fn update_remote_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    profile_id: String,
+    name: String,
+    url: String,
+    auto_refresh_secs: Option<u64>,
+) -> Result<Profile, String> {
+    let url = url.trim().to_string();
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("URL 必须以 http:// 或 https:// 开头".to_string());
+    }
+
+    // 判断 URL 是否变化（短锁），变化则需要重新拉取
+    let url_changed = {
+        let cfg = state.config.lock().map_err(|e| e.to_string())?;
+        let p = cfg.profile(&profile_id).ok_or("profile 不存在")?;
+        if !p.is_remote {
+            return Err("该 profile 不是远程 hosts".to_string());
+        }
+        p.url.as_deref() != Some(url.as_str())
+    };
+
+    // URL 变化：先拉取新内容（不持锁，走网络）
+    let new_content = if url_changed {
+        Some(fetch_remote_content(&app, &url).await?)
+    } else {
+        None
+    };
+
+    let was_enabled;
+    let profile = {
+        let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
+        let p = cfg.profile_mut(&profile_id).ok_or("profile 不存在")?;
+        let name = name.trim();
+        p.name = if name.is_empty() { url.clone() } else { name.to_string() };
+        p.url = Some(url);
+        p.auto_refresh_secs = auto_refresh_secs.unwrap_or(0);
+        if let Some(content) = new_content {
+            p.content = content;
+            p.last_fetch_at = Some(chrono::Utc::now().to_rfc3339());
+        }
+        was_enabled = p.enabled;
+        let cloned = p.clone();
+        crate::store::save_config(&app, &cfg)?;
+        cloned
+    };
+
+    // 名称/URL/刷新间隔可能已变化：同步 DNS 代理映射
+    refresh_proxy_mappings(&state);
+
+    // 内容已变化且处于启用状态 → 重新写入系统 hosts
+    if url_changed && was_enabled && crate::hosts_path::is_desktop() {
+        let merged = build_merged_hosts(&app, &state)?;
+        tauri::async_runtime::spawn_blocking(move || write_hosts(merged))
+            .await
+            .map_err(|e| format!("应用失败: {}", e))??;
+        let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
+        if let Some(p) = cfg.profile_mut(&profile_id) {
+            p.last_applied_at = Some(chrono::Utc::now().to_rfc3339());
+            crate::store::save_config(&app, &cfg).ok();
+        }
+    }
+
+    Ok(profile)
+}
+
 /// 启动时自动刷新所有已启用的远程 hosts（后台执行，失败仅记日志）
 pub async fn auto_refresh_remote_profiles(app: tauri::AppHandle) {
     use tauri::Manager;

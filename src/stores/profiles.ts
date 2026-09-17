@@ -13,6 +13,7 @@ import {
   saveProfileContent,
   setActiveProfile,
   toggleProfile,
+  updateRemoteProfile,
 } from '../api/tauri'
 import type { Profile } from '../types/ipc'
 import { ElMessage } from 'element-plus'
@@ -91,6 +92,32 @@ export const useProfilesStore = defineStore('profiles', () => {
       return updated.content
     } catch (e: any) {
       ElMessage.error(t('profiles.remoteRefreshFailed', { msg: e }))
+      return null
+    }
+  }
+
+  /** 编辑远程 hosts：修改名称 / URL / 自动刷新间隔（URL 变化时后端会重新拉取内容） */
+  async function updateRemote(
+    id: string,
+    name: string,
+    url: string,
+    autoRefreshSecs = 0,
+  ): Promise<Profile | null> {
+    try {
+      const updated = await updateRemoteProfile(id, name, url, autoRefreshSecs)
+      const p = profiles.value.find((x) => x.id === id)
+      if (p) {
+        p.name = updated.name
+        p.url = updated.url
+        p.auto_refresh_secs = updated.auto_refresh_secs
+        p.content = updated.content
+        p.last_fetch_at = updated.last_fetch_at
+        p.last_applied_at = updated.last_applied_at
+      }
+      ElMessage.success(t('profiles.remoteUpdated'))
+      return updated
+    } catch (e: any) {
+      ElMessage.error(t('profiles.remoteUpdateFailed', { msg: e }))
       return null
     }
   }
@@ -212,6 +239,7 @@ export const useProfilesStore = defineStore('profiles', () => {
     createRemote,
     applyRefreshedRemote,
     refreshRemote,
+    updateRemote,
     remove,
     rename,
     select,

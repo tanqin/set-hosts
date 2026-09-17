@@ -46,6 +46,8 @@ export default {
   'app.remoteUrlHint': 'Hosts content will be fetched from this URL; a proxy configured in Options will be used if enabled.',
   'app.remoteUrlRequired': 'Please enter a URL',
   'app.remoteAdd': 'Add & Fetch',
+  'app.remoteSave': 'Save',
+  'app.editRemote': 'Edit Remote Hosts',
   'app.lastFetch': 'Last fetch: {time}',
   'app.autoRefresh': 'Auto refresh',
   'app.autoRefreshHint': 'Fetch the latest content in the background at the selected interval (while the app is running).',
@@ -59,6 +61,8 @@ export default {
   'profiles.remoteCreateFailed': 'Failed to add remote hosts: {msg}',
   'profiles.remoteRefreshed': 'Remote hosts refreshed',
   'profiles.remoteRefreshFailed': 'Failed to refresh remote hosts: {msg}',
+  'profiles.remoteUpdated': 'Remote hosts updated',
+  'profiles.remoteUpdateFailed': 'Failed to update remote hosts: {msg}',
 
   // Options
   'options.title': 'Options',
