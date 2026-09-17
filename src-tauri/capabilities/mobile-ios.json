@@ -1,11 +1,14 @@
 {
   "$schema": "../gen/schemas/ios-schema.json",
   "identifier": "mobile-ios",
-  "description": "Set Hosts iOS Network Extension 权限",
+  "description": "Set Hosts iOS DNS 代理权限",
   "platforms": ["iOS"],
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "notification:default"
+    "shell:allow-open",
+    "dialog:default",
+    "notification:default",
+    "store:default"
   ]
 }

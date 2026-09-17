@@ -431,6 +431,11 @@ pub fn export_config_to_file(
     path: String,
     format: ExportFormat,
 ) -> Result<(), String> {
+    // 移动端靠文件对话框才能拿到路径，且沙盒内读写受限：后端同样要挡一层，
+    // 不能只依赖前端隐藏入口
+    if !crate::hosts_path::is_desktop() {
+        return Err("移动端不支持导出到文件".to_string());
+    }
     let cfg = state.config.lock().map_err(|e| e.to_string())?;
     let content = crate::import_export::export_config(&cfg, &format)?;
     std::fs::write(&path, content).map_err(|e| format!("写入文件失败: {}", e))
@@ -444,6 +449,9 @@ pub fn import_config_from_file(
     path: String,
     format: ExportFormat,
 ) -> Result<ImportSummary, String> {
+    if !crate::hosts_path::is_desktop() {
+        return Err("移动端不支持从文件导入".to_string());
+    }
     let content =
         std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {}", e))?;
     apply_import(app, state, content, format)
@@ -1024,6 +1032,21 @@ pub fn clear_diagnostics() {
 
 // ============ 打开 hosts 所在文件夹 ============
 
+/// Linux 上可用于打开目录的命令，按优先级排列
+#[cfg(target_os = "linux")]
+const LINUX_FILE_MANAGERS: &[&str] = &["xdg-open", "nautilus", "dolphin", "thunar", "nemo"];
+
+/// 检测命令是否存在于 PATH（Linux）
+#[cfg(target_os = "linux")]
+fn command_exists(cmd: &str) -> bool {
+    std::env::var("PATH")
+        .map(|path| {
+            path.split(':')
+                .any(|dir| std::path::Path::new(dir).join(cmd).exists())
+        })
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn open_hosts_folder() -> Result<(), String> {
     let hosts_path = crate::hosts_path::hosts_path()
@@ -1050,11 +1073,21 @@ pub fn open_hosts_folder() -> Result<(), String> {
     }
     #[cfg(target_os = "linux")]
     {
-        std::process::Command::new("xdg-open")
-            .arg(parent)
-            .spawn()
-            .map_err(|e| format!("打开文件夹失败: {}", e))?;
-        return Ok(());
+        // Windows 的 explorer 与 macOS 的 open 是系统自带的，Linux 的 xdg-open 在
+        // 精简发行版 / 纯窗口管理器环境下可能不存在，因此逐个探测并回退到常见文件管理器
+        for cmd in LINUX_FILE_MANAGERS {
+            if !command_exists(cmd) {
+                continue;
+            }
+            if std::process::Command::new(cmd).arg(parent).spawn().is_ok() {
+                return Ok(());
+            }
+        }
+        return Err(
+            "未检测到可用的文件管理器（已尝试 xdg-open / nautilus / dolphin / thunar / nemo），\
+             请手动打开 /etc"
+                .to_string(),
+        );
     }
 
     // 移动端没有可打开的文件管理器入口

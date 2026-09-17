@@ -83,6 +83,14 @@ fn decode_windows_bytes(bytes: &[u8]) -> String {
 #[cfg(target_os = "macos")]
 fn copy_with_elevation(temp: &PathBuf, hosts: &PathBuf) -> Result<(), String> {
     use std::process::Command;
+
+    // 与 Linux 的 pkexec 检测对齐：先确认 osascript 可用，否则给出可操作的提示，
+    // 而不是丢一个原始的 spawn 错误给上层
+    if which("osascript").is_err() {
+        let _ = std::fs::remove_file(temp);
+        return Err("未检测到 osascript（macOS 系统自带），无法提权写入 /etc/hosts".to_string());
+    }
+
     let temp_str = temp.to_string_lossy().to_string();
     let hosts_str = hosts.to_string_lossy().to_string();
     let script = format!(
@@ -97,6 +105,10 @@ fn copy_with_elevation(temp: &PathBuf, hosts: &PathBuf) -> Result<(), String> {
     let _ = std::fs::remove_file(temp);
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
+        // -128：用户在系统密码框点了「取消」，与「真的失败」区分开
+        if err.contains("-128") {
+            return Err("macOS 权限提升已被用户取消".to_string());
+        }
         return Err(format!("macOS 权限提升失败: {}", err));
     }
     Ok(())
@@ -131,8 +143,8 @@ fn copy_with_elevation(_temp: &PathBuf, _hosts: &PathBuf) -> Result<(), String> 
     Err("当前平台不支持权限提升写入 hosts".to_string())
 }
 
-/// 检测命令是否存在（Linux）
-#[cfg(target_os = "linux")]
+/// 检测命令是否存在（Linux / macOS）
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn which(cmd: &str) -> Result<(), ()> {
     if let Ok(path) = std::env::var("PATH") {
         for dir in path.split(':') {
