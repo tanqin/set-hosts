@@ -10,7 +10,7 @@
 pub mod resolver;
 pub mod server;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
@@ -53,6 +53,13 @@ pub struct DnsProxy {
     /// 移动端「映射不生效」时这是最关键的一条信息：日志只进 logcat，用户看不到，
     /// 而失败原因（端口占用 / 上游不可用）恰恰决定了该怎么修。
     last_error: RwLock<Option<String>>,
+    /// 「本应用管理过的域名」集合（只增不减）
+    ///
+    /// 这些域名被开关配置来回改写，所以它们的应答**不能被客户端长期缓存**：
+    /// 典型故障是关闭配置后域名被转发上游、拿到一条 TTL 很长的 NXDOMAIN，客户端/
+    /// 系统解析器把它缓存住；再打开配置时客户端根本不再发查询，表现为「关了再开
+    /// 就打不开、必须重启应用才恢复」（重启会重建 VPN 网络，系统按网络丢弃缓存）。
+    managed: Arc<RwLock<HashSet<String>>>,
 }
 
 impl Default for DnsProxy {
@@ -65,6 +72,7 @@ impl Default for DnsProxy {
             listen_addr: RwLock::new(None),
             running: AtomicBool::new(false),
             last_error: RwLock::new(None),
+            managed: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 }
@@ -78,13 +86,38 @@ impl DnsProxy {
     /// 全量替换映射表，返回新的映射条数
     pub fn set_mappings(&self, mappings: Mappings) -> usize {
         let count = mappings.len();
+        // 顺便记住这些域名（只增不减）：关闭配置后它们会被转发上游，
+        // 而那条应答仍必须「不可长期缓存」，否则再打开配置客户端不会重新查询
+        {
+            let mut managed = self.managed.write().unwrap_or_else(|e| e.into_inner());
+            managed.extend(mappings.keys().cloned());
+        }
         *self.mappings.write().unwrap_or_else(|e| e.into_inner()) = mappings;
         count
+    }
+
+    /// 追加一批「本应用管理的域名」（含未启用 profile 里的域名）
+    ///
+    /// 未启用的域名同样要登记：用户可能先访问过它（拿到被缓存的上游 NXDOMAIN），
+    /// 之后才启用映射，那时客户端不会重新查询，看起来就是「启用了却没生效」。
+    pub fn add_managed_domains<I: IntoIterator<Item = String>>(&self, domains: I) {
+        self.managed
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .extend(domains);
     }
 
     /// 当前映射条数
     pub fn mapping_count(&self) -> usize {
         self.mappings
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
+    }
+
+    /// 「本应用管理过的域名」数量（供诊断报告展示）
+    pub fn managed_count(&self) -> usize {
+        self.managed
             .read()
             .unwrap_or_else(|e| e.into_inner())
             .len()
@@ -156,6 +189,7 @@ impl DnsProxy {
             self.mappings.clone(),
             self.upstream.clone(),
             self.counters.clone(),
+            self.managed.clone(),
         )
         .await
         {
@@ -167,6 +201,7 @@ impl DnsProxy {
                     self.mappings.clone(),
                     self.upstream.clone(),
                     self.counters.clone(),
+                    self.managed.clone(),
                 )
                 .await
                 {
@@ -266,6 +301,27 @@ pub fn mappings_from_config(config: &Config) -> Mappings {
 /// 域名规范化：去掉首尾空白与末尾的点，统一小写
 pub fn normalize_domain(domain: &str) -> String {
     domain.trim().trim_end_matches('.').to_ascii_lowercase()
+}
+
+/// 收集**所有** profile（含未启用的）中出现的域名
+///
+/// 用于登记「本应用管理的域名」：这些域名随时可能被开关，应答不能被客户端长期缓存
+/// （详见 [`DnsProxy::managed`]）。这里不校验 IP、也不看启用状态——域名本身就是关键。
+pub fn managed_domains_from_config(config: &Config) -> Vec<String> {
+    let mut domains = Vec::new();
+
+    for profile in &config.profiles {
+        for entry in crate::parser::parse_hosts_text(&profile.content) {
+            for domain in &entry.domains {
+                let domain = normalize_domain(domain);
+                if !domain.is_empty() {
+                    domains.push(domain);
+                }
+            }
+        }
+    }
+
+    domains
 }
 
 #[cfg(test)]

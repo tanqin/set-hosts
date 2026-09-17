@@ -35,7 +35,15 @@ impl AppState {
 /// 保证 DNS 代理与系统 hosts 的映射始终一致。
 pub fn refresh_proxy_mappings(state: &AppState) -> usize {
     let mappings = match state.config.lock() {
-        Ok(cfg) => dns_proxy::mappings_from_config(&cfg),
+        Ok(cfg) => {
+            // 所有 profile 里的域名（含未启用的）都登记为「本应用管理过的域名」：
+            // 它们的应答不能被客户端长期缓存，否则开关配置会「改了却还是旧的」，
+            // 移动端表现为「关了再开就访问失败、要重启应用」（见 DnsProxy::managed）
+            state
+                .proxy
+                .add_managed_domains(dns_proxy::managed_domains_from_config(&cfg));
+            dns_proxy::mappings_from_config(&cfg)
+        }
         Err(e) => {
             log::warn!("重建 DNS 代理映射失败: {}", e);
             return 0;
@@ -911,6 +919,12 @@ pub async fn get_diagnostics(
         "首选端口: {}（0 = 用默认 {}；被占用时会自动改用系统随机端口）\n",
         settings.dns_proxy_port,
         dns_proxy::DEFAULT_PORT
+    ));
+    // 这些域名被开关来回改写，应答会被压到 1 秒 TTL——否则客户端缓存住上游应答，
+    // 重新打开配置时不再发查询，就成了「关了再开打不开、要重启应用」
+    report.push_str(&format!(
+        "管理域名: {} 个（含未启用；应答 TTL 压到 1 秒，保证开关立即生效）\n",
+        state.proxy.managed_count()
     ));
     // 服务器起不来是移动端「映射完全没生效」的头号原因，失败原因必须直接摊在报告里
     if !status.running {

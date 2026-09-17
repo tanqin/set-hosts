@@ -1,9 +1,12 @@
 //! 本地 DNS 服务器：UDP + TCP 同端口监听
 //!
-//! - 命中映射表的查询：直接返回 A / AAAA 记录（TTL 60 秒，便于配置变更后快速生效）；
-//! - 其它查询：原样转发给上游 DNS，并回传上游应答（超出 UDP 大小被截断时改用 TCP 重查）；
+//! - 命中映射表的查询：直接返回 A / AAAA 记录（TTL 见 [`MAPPING_TTL`]，便于配置变更后立即生效）；
+//! - 其它查询：转发给上游 DNS 并回传应答（超出 UDP 大小被截断时改用 TCP 重查）；
+//!   但**本应用管理过的域名**（见 [`Context::managed`]）会被压掉 TTL，防止客户端把
+//!   「暂时关闭映射」期间拿到的上游应答（往往是长 TTL 的 NXDOMAIN）缓存住；
 //! - 非法报文丢弃，转发失败返回 SERVFAIL（若有本地命中则仍返回本地应答）。
 
+use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
@@ -58,6 +61,8 @@ struct Context {
     mappings: Arc<RwLock<Mappings>>,
     upstream: Arc<RwLock<Vec<SocketAddr>>>,
     counters: Arc<Counters>,
+    /// 本应用管理过的域名：其转发应答要压掉 TTL，避免被客户端长期缓存
+    managed: Arc<RwLock<HashSet<String>>>,
 }
 
 /// 启动 DNS 服务器（UDP + TCP 同端口），返回句柄
@@ -66,6 +71,7 @@ pub async fn start(
     mappings: Arc<RwLock<Mappings>>,
     upstream: Arc<RwLock<Vec<SocketAddr>>>,
     counters: Arc<Counters>,
+    managed: Arc<RwLock<HashSet<String>>>,
 ) -> Result<ServerHandle, String> {
     let udp = UdpSocket::bind(bind_addr)
         .await
@@ -87,6 +93,7 @@ pub async fn start(
         mappings,
         upstream,
         counters,
+        managed,
     };
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
@@ -265,8 +272,19 @@ async fn resolve(request: &[u8], ctx: &Context) -> Option<Vec<u8>> {
     // 只有整条请求都没命中映射时才向上游转发。
     if need_forward && answered == 0 {
         ctx.counters.forward.fetch_add(1, Ordering::Relaxed);
+        // 本应用管理过的域名（映射此刻被关掉了）→ 压掉上游应答的 TTL：
+        // 否则这条应答会在客户端/系统解析器里长时间生效，用户重新打开配置时
+        // 客户端不再发查询，表现为「关了再开就访问失败，必须重启应用」
+        let managed = has_managed_name(&query, ctx);
         match forward(request, ctx).await {
-            Ok(bytes) => return Some(bytes),
+            Ok(bytes) => {
+                if managed {
+                    if let Some(clamped) = clamp_managed_ttl(&bytes) {
+                        return Some(clamped);
+                    }
+                }
+                return Some(bytes);
+            }
             Err(e) => {
                 log::warn!("DNS 代理转发失败: {}", e);
                 if answered == 0 {
@@ -393,6 +411,54 @@ fn normalize_name(name: &Name) -> String {
     super::normalize_domain(&name.to_ascii())
 }
 
+/// 查询里是否包含「本应用管理过的域名」
+fn has_managed_name(query: &Message, ctx: &Context) -> bool {
+    let managed = ctx.managed.read().unwrap_or_else(|e| e.into_inner());
+    if managed.is_empty() {
+        return false;
+    }
+    query
+        .queries()
+        .iter()
+        .any(|q| managed.contains(&normalize_name(q.name())))
+}
+
+/// 把上游应答里「答案」与「权威」两段的 TTL 压到 [`MAPPING_TTL`]
+///
+/// 只用于本应用管理过的域名：这些域名的应答会随配置开关来回变，必须让客户端每次都
+/// 重新查询，否则关掉配置期间拿到的 NXDOMAIN（TTL 常常是几十分钟）会把「映射已关闭」
+/// 这个临时状态长期钉在客户端缓存里。
+///
+/// 刻意不动「附加」段：EDNS0 的 OPT 记录可能出现在那里，而它的 TTL 字段被复用成
+/// 「扩展 rcode + 版本 + DO 标志」，按 TTL 改写会直接把应答改坏。
+///
+/// 解析失败时返回 `None`，调用方原样回传——绝不因为改写 TTL 丢掉一次应答。
+fn clamp_managed_ttl(response: &[u8]) -> Option<Vec<u8>> {
+    let mut message = Message::from_vec(response).ok()?;
+
+    let mut changed = false;
+    for record in message.answers_mut() {
+        changed |= clamp_record_ttl(record);
+    }
+    for record in message.name_servers_mut() {
+        changed |= clamp_record_ttl(record);
+    }
+    if !changed {
+        return None;
+    }
+
+    message.to_vec().ok()
+}
+
+/// 单条记录的 TTL 压缩；返回是否真的改动了
+fn clamp_record_ttl(record: &mut Record) -> bool {
+    if record.ttl() <= MAPPING_TTL {
+        return false;
+    }
+    record.set_ttl(MAPPING_TTL);
+    true
+}
+
 /// 判断应答是否被截断（TC 标志位：flags 第二字节的最高位起第 2 位）
 fn is_truncated(response: &[u8]) -> bool {
     response.len() > 3 && (response[2] & 0x02) != 0
@@ -409,6 +475,7 @@ mod tests {
             mappings: Arc::new(RwLock::new(mappings)),
             upstream: Arc::new(RwLock::new(upstream)),
             counters: Arc::new(Counters::default()),
+            managed: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 
@@ -427,6 +494,67 @@ mod tests {
 
     fn parse(response: &[u8]) -> Message {
         Message::from_vec(response).unwrap()
+    }
+
+    /// 「本应用管理过的域名」的转发应答必须压掉 TTL
+    ///
+    /// 真机故障背景：关闭配置后域名被转发上游，拿到一条 TTL 很长的 NXDOMAIN；
+    /// 客户端把它缓存住，重新打开配置时根本不发查询 →「关了再开就访问失败，
+    /// 必须重启应用」，而重启只是重建了 VPN 网络、顺带丢掉了系统解析器缓存。
+    #[tokio::test]
+    async fn clamps_ttl_of_forwarded_answer_for_managed_domain() {
+        let mut upstream_msg = Message::new();
+        upstream_msg.set_id(0x1234);
+        upstream_msg.set_message_type(MessageType::Response);
+        upstream_msg.set_response_code(ResponseCode::NoError);
+        upstream_msg.add_answer(Record::from_rdata(
+            Name::from_ascii("dev.local.").unwrap(),
+            3600,
+            RData::A(A("203.0.113.9".parse().unwrap())),
+        ));
+        let upstream_bytes = upstream_msg.to_vec().unwrap();
+
+        let clamped = clamp_managed_ttl(&upstream_bytes).expect("TTL 应被压缩");
+        let msg = parse(&clamped);
+        assert_eq!(msg.answers().len(), 1);
+        assert_eq!(msg.answers()[0].ttl(), MAPPING_TTL);
+        // 内容必须原样保留，只动 TTL
+        assert_eq!(
+            msg.answers()[0].data(),
+            &RData::A(A("203.0.113.9".parse().unwrap()))
+        );
+    }
+
+    #[test]
+    fn keeps_ttl_when_already_short_and_never_touches_edns() {
+        let mut msg = Message::new();
+        msg.set_id(0x1234);
+        msg.set_message_type(MessageType::Response);
+        msg.add_answer(Record::from_rdata(
+            Name::from_ascii("dev.local.").unwrap(),
+            MAPPING_TTL,
+            RData::A(A("203.0.113.9".parse().unwrap())),
+        ));
+        // 已经足够短：不需要改写（返回 None，调用方原样回传）
+        assert!(clamp_managed_ttl(&msg.to_vec().unwrap()).is_none());
+
+        // EDNS0 的 OPT 记录寄生在附加段，其 TTL 字段是「扩展 rcode + 版本 + 标志」，
+        // 绝不能被当成普通 TTL 改写
+        let mut with_edns = Message::new();
+        with_edns.set_id(0x1234);
+        with_edns.set_message_type(MessageType::Response);
+        with_edns.add_answer(Record::from_rdata(
+            Name::from_ascii("dev.local.").unwrap(),
+            3600,
+            RData::A(A("203.0.113.9".parse().unwrap())),
+        ));
+        with_edns.set_edns(hickory_proto::op::Edns::new());
+        let clamped = clamp_managed_ttl(&with_edns.to_vec().unwrap()).expect("TTL 应被压缩");
+        let parsed = parse(&clamped);
+        assert_eq!(parsed.answers()[0].ttl(), MAPPING_TTL);
+        // EDNS0（含 OPT 的「扩展 rcode + 版本 + DO 标志」）必须完整保留：
+        // OPT 记录里那个字段位置和 TTL 相同，但语义完全不同，绝不能一起改写
+        assert!(parsed.edns().is_some(), "EDNS0 信息应完整保留");
     }
 
     #[tokio::test]
@@ -504,6 +632,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn recognizes_managed_domain_ignoring_case() {
+        let ctx = context(HashMap::new(), vec![]);
+        ctx.managed
+            .write()
+            .unwrap()
+            .insert("dev.local".to_string());
+
+        // hosts 里写的是小写、客户端发来的大小写不定，必须规范化后比较
+        let managed = Message::from_vec(&query_bytes("Dev.Local", RecordType::A)).unwrap();
+        assert!(has_managed_name(&managed, &ctx));
+
+        let unmanaged = Message::from_vec(&query_bytes("google.com", RecordType::A)).unwrap();
+        assert!(!has_managed_name(&unmanaged, &ctx));
+    }
+
+    #[tokio::test]
     async fn serves_real_udp_queries() {
         let mut mappings = HashMap::new();
         mappings.insert("dev.local".to_string(), "10.0.0.5".parse::<IpAddr>().unwrap());
@@ -511,12 +655,14 @@ mod tests {
         let mappings = Arc::new(RwLock::new(mappings));
         let upstream = Arc::new(RwLock::new(Vec::new()));
         let counters = Arc::new(Counters::default());
+        let managed = Arc::new(RwLock::new(HashSet::new()));
 
         let mut handle = start(
             SocketAddr::from(([127, 0, 0, 1], 0)),
             mappings,
             upstream,
             counters.clone(),
+            managed,
         )
         .await
         .expect("DNS 服务器应能启动");
