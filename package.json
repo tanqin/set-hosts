@@ -20,7 +20,13 @@
     "build:android:debug": "node scripts/build-android.mjs --debug",
     "build:android:aab": "node scripts/build-android.mjs --aab",
     "build:ios": "node scripts/build-ios.mjs",
-    "build:all": "node scripts/build-all.mjs"
+    "build:all": "node scripts/build-all.mjs",
+    "version:patch": "node scripts/bump-version.mjs patch",
+    "version:minor": "node scripts/bump-version.mjs minor",
+    "version:major": "node scripts/bump-version.mjs major",
+    "version:sync": "node scripts/bump-version.mjs",
+    "version:check": "node scripts/bump-version.mjs --check",
+    "push": "git push --follow-tags"
   },
   "dependencies": {
     "vue": "^3.5.13",

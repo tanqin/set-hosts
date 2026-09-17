@@ -11,6 +11,9 @@ const settingsStore = useSettingsStore()
 // 移动端窄屏按 35% 宽度会把「版本 / 技术栈 / 支持平台」的标签列挤成竖排，
 // 因此移动端铺满整屏，桌面端仍保持侧栏式抽屉。
 const drawerSize = computed(() => (settingsStore.platform?.is_mobile ? '100%' : '35%'))
+
+/** 版本号在构建时由 vite 从 package.json 注入，随版本更新脚本自动同步 */
+const appVersion = __APP_VERSION__
 </script>
 
 <template>
@@ -27,7 +30,7 @@ const drawerSize = computed(() => (settingsStore.platform?.is_mobile ? '100%' : 
         {{ t('about.subtitle') }}
       </div>
       <el-descriptions :column="1" border style="text-align: left">
-        <el-descriptions-item :label="t('about.version')">0.1.0</el-descriptions-item>
+        <el-descriptions-item :label="t('about.version')">{{ appVersion }}</el-descriptions-item>
         <el-descriptions-item :label="t('about.techstack')">Tauri 2 · Rust · Vue3 · TypeScript · Element Plus</el-descriptions-item>
         <el-descriptions-item :label="t('about.platforms')">Linux · macOS · Windows · Android · iOS</el-descriptions-item>
       </el-descriptions>

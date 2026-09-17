@@ -130,6 +130,16 @@ function buildTargets(options) {
   const startedAt = Date.now() - 2000;
   const results = [];
 
+  // 打包前校验各处版本号一致：关于页版本取自 package.json，
+  // 若 tauri.conf / Cargo.toml 等未同步，安装包版本会与页面显示不一致
+  const versionCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'bump-version.mjs'), '--check'], {
+    cwd: ROOT,
+    encoding: 'utf-8',
+  });
+  if (versionCheck.status !== 0) {
+    warn('版本号不一致，建议先执行 npm run version:sync 再打包');
+  }
+
   for (const target of TARGETS) {
     if (options.only && options.only !== target.key) continue;
     if (options.skip.has(target.key)) {
