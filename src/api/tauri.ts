@@ -74,6 +74,9 @@ export const importConfigFromFile = (path: string, format: ExportFormat): Promis
 /** 移动端：确保 VPN 隧道已接管系统 DNS（回到前台时自愈，已授权则不会再弹窗） */
 export const ensureTunnel = (): Promise<boolean> => invoke('ensure_tunnel')
 
+/** 移动端「再按一次退出」确认后退出应用（Android 会先停 VPN 隧道再终止进程） */
+export const exitApp = (): Promise<void> => invoke('exit_app')
+
 export const getPlatformInfo = (): Promise<PlatformInfo> => invoke('get_platform_info')
 
 /**

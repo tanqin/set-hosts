@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -16,6 +17,13 @@ class MainActivity : TauriActivity() {
   private var insetsScript: ScriptHandler? = null
   private var insetTop = 0f
   private var insetBottom = 0f
+
+  /**
+   * 关闭 wry 默认的返回处理（WebView 无历史记录时返回手势会直接退出应用）。
+   * 返回手势 / 返回键改由 [onWebViewCreate] 中注册的回调转发给前端
+   * `window.__onAndroidBack()` 统一处理：关闭子抽屉 → 关闭设置菜单 → 双击退出。
+   */
+  override val handleBackNavigation: Boolean = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     // Android 15+ 强制 edge-to-edge：WebView 会一直绘制到状态栏 / 导航栏下方。
@@ -30,6 +38,15 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
     applySafeAreaInsets()
+    // 返回手势 / 返回键 → 前端统一处理（关闭抽屉 / 关闭设置菜单 / 双击退出）。
+    // 前端确认退出后会走 Rust 的 exit_app 命令回调 [exitApp]。
+    onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+      override fun handleOnBackPressed() {
+        webView.evaluateJavascript(
+          "window.__onAndroidBack ? window.__onAndroidBack() : null"
+        ) { _ -> }
+      }
+    })
   }
 
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -71,6 +88,23 @@ class MainActivity : TauriActivity() {
 
   @Suppress("unused")
   fun isDnsVpnRunning(): Boolean = DnsVpn.isRunning()
+
+  /**
+   * 退出应用（前端「再按一次退出」确认后由 Rust 通过 JNI 调用，见
+   * `src-tauri/src/mobile/android.rs`）：停止 DNS 隧道 → 结束 Activity → 终止进程。
+   *
+   * 必须显式杀进程：Tauri 运行时不会随 Activity 销毁而退出，进程若残留，
+   * 下次启动无法重新初始化（表现为白屏）。
+   */
+  @Suppress("unused")
+  fun exitApp() {
+    runOnUiThread {
+      // 先停掉 VPN 隧道，让系统钥匙图标立即消失；进程终止后系统也会兜底回收
+      runCatching { stopService(Intent(this, DnsVpnService::class.java)) }
+      finish()
+      android.os.Process.killProcess(android.os.Process.myPid())
+    }
+  }
 
   /**
    * 读取 / 清空隧道诊断日志（由 Rust 通过 JNI 调用，见 `src-tauri/src/mobile/android.rs`）。

@@ -21,7 +21,7 @@ import { listen } from '@tauri-apps/api/event'
 import type { Profile } from './types/ipc'
 import { useProfilesStore } from './stores/profiles'
 import { useSettingsStore } from './stores/settings'
-import { ensureTunnel, getCurrentHostsContent } from './api/tauri'
+import { ensureTunnel, exitApp, getCurrentHostsContent } from './api/tauri'
 import { locale, t } from './i18n'
 import HostsEditor from './components/HostsEditor.vue'
 import BackupDrawer from './components/drawers/BackupDrawer.vue'
@@ -191,6 +191,77 @@ const drawers = ref({
   about: false,
 })
 
+// ---- 移动端 Android 返回手势（边缘滑动 / 返回键）----
+// Kotlin 侧拦截系统返回事件后调用 window.__onAndroidBack()（见 MainActivity.kt），
+// 这里按「子抽屉 → 弹窗 → 设置菜单 → 双击退出」的顺序逐层返回。
+let lastBackAt = 0
+const BACK_EXIT_WINDOW_MS = 2000
+
+/** 是否有 Element Plus 消息框打开（重命名 / 删除确认等；抽屉与对话框单独处理） */
+function isMessageBoxOpen(): boolean {
+  return !!document.querySelector('.el-message-box')
+}
+
+/** 退出前先落盘未保存的编辑内容 */
+async function requestExitApp() {
+  try {
+    await flushSave()
+  } catch {
+    // 保存失败也要允许退出
+  }
+  try {
+    await exitApp()
+  } catch {
+    // 非 Tauri 环境（纯浏览器调试）忽略
+  }
+}
+
+/** Android 返回手势统一入口（返回事件总是被前端消费，不再直接退出应用） */
+function handleAndroidBack(): boolean {
+  // 1. 子抽屉（选项 / 诊断日志 / 关于等）打开 → 关闭抽屉（关闭后自动回到设置菜单）
+  const openKey = (Object.keys(drawers.value) as (keyof typeof drawers.value)[]).find(
+    (k) => drawers.value[k],
+  )
+  if (openKey) {
+    drawers.value[openKey] = false
+    return true
+  }
+  // 2. 新增远程 hosts 对话框打开 → 关闭对话框
+  if (remoteDialogVisible.value) {
+    if (!remoteCreating.value) remoteDialogVisible.value = false
+    return true
+  }
+  // 3. 消息框（确认 / 输入）打开 → 模拟 Esc 关闭
+  if (isMessageBoxOpen()) {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape' }))
+    return true
+  }
+  // 4. 设置菜单打开 → 关闭设置菜单
+  if (settingsMenuVisible.value) {
+    settingsMenuVisible.value = false
+    return true
+  }
+  // 5. 首页：第一次返回弹出提示，2 秒内第二次返回才退出
+  const now = Date.now()
+  if (now - lastBackAt <= BACK_EXIT_WINDOW_MS) {
+    lastBackAt = 0
+    requestExitApp()
+  } else {
+    lastBackAt = now
+    ElMessage(t('app.pressBackAgainToExit'))
+  }
+  return true
+}
+
+// 子抽屉全部关闭时（关闭图标 / 遮罩点击 / 返回手势），移动端回到设置菜单，
+// 保持「设置 → 子页面 → 返回上一步」的导航层级
+const anyDrawerOpen = computed(() => Object.values(drawers.value).some(Boolean))
+watch(anyDrawerOpen, (open, wasOpen) => {
+  if (isMobile.value && wasOpen && !open) {
+    settingsMenuVisible.value = true
+  }
+})
+
 // 后台定时刷新完成 → 同步 profile 列表、编辑区与系统 Hosts 只读区
 let unlistenRemoteRefreshed: (() => void) | null = null
 
@@ -222,6 +293,8 @@ async function setupVpnConsentListener() {
 }
 
 onMounted(async () => {
+  // Android 返回手势统一入口（MainActivity 的 OnBackPressedCallback 调用）
+  ;(window as any).__onAndroidBack = () => handleAndroidBack()
   window.addEventListener('resize', onWindowResize)
   document.addEventListener('visibilitychange', onDocumentVisibilityChange)
   setupRemoteRefreshListener()

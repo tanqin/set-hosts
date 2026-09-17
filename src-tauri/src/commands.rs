@@ -1417,3 +1417,24 @@ pub async fn spawn_remote_auto_refresh_loop(app: tauri::AppHandle) {
         }
     }
 }
+
+// ============ 退出应用 ============
+
+/// 退出应用（移动端「再按一次退出」确认后由前端调用）。
+///
+/// Android：通知 MainActivity 结束 Activity 并终止进程（会先停掉 VPN 隧道），
+/// 前端调用前已把未保存的编辑内容落盘；桌面端当前没有入口调用它，仅作兜底。
+#[tauri::command]
+pub fn exit_app(app: tauri::AppHandle) {
+    #[cfg(target_os = "android")]
+    {
+        if let Err(e) = crate::mobile::android::exit_app() {
+            log::error!("调用原生退出失败，退回 Tauri 退出: {e}");
+            app.exit(0);
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        app.exit(0);
+    }
+}

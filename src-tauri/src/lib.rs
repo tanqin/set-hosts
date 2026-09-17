@@ -240,6 +240,8 @@ pub fn run() {
             // 开机自启
             commands::get_autostart_status,
             commands::set_autostart,
+            // 退出应用（移动端「再按一次退出」）
+            commands::exit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Set Hosts application");

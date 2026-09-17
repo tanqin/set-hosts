@@ -206,3 +206,16 @@ pub fn is_vpn_active() -> bool {
         }
     }
 }
+
+/// 退出应用（前端「再按一次退出」确认后调用）：
+/// 结束 Activity 并终止进程（Kotlin 侧 `MainActivity.exitApp()`，
+/// 会先停掉 VPN 隧道再杀进程，避免残留进程导致下次启动白屏）
+pub fn exit_app() -> Result<(), String> {
+    let (vm, activity) = bridge()?;
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|err| format!("挂载当前线程到 JVM 失败: {err}"))?;
+    env.call_method(activity, "exitApp", "()V", &[])
+        .map_err(|err| format!("调用原生退出失败: {err}"))?;
+    Ok(())
+}
