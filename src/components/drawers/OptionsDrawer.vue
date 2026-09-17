@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { openHostsFolder, getDataDir, changeDataDir } from '../../api/tauri'
 import { useSettingsStore, type WriteMode } from '../../stores/settings'
-import { t, type Locale } from '../../i18n'
+import { LOCALES, t, type Locale } from '../../i18n'
 import { invoke } from '@tauri-apps/api/core'
 
 const props = defineProps<{ visible: boolean }>()
@@ -125,8 +125,12 @@ async function handleChangeDataDir() {
         <el-form label-position="top" style="max-width: 360px">
           <el-form-item :label="t('options.language')">
             <el-select :model-value="settingsStore.language" style="width: 100%" @change="handleLanguageChange">
-              <el-option :label="t('options.language.zhCN')" value="zh-CN" />
-              <el-option :label="t('options.language.en')" value="en" />
+              <el-option
+                v-for="meta in LOCALES"
+                :key="meta.code"
+                :label="meta.label"
+                :value="meta.code"
+              />
             </el-select>
           </el-form-item>
           <el-form-item :label="t('options.theme')">

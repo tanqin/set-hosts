@@ -12,7 +12,7 @@ import {
 } from '../api/tauri'
 import type { ExportFormat, PlatformInfo } from '../types/ipc'
 import { ElMessage } from 'element-plus'
-import { setLocale, t, type Locale } from '../i18n'
+import { normalizeLocale, setLocale, t, type Locale } from '../i18n'
 
 export type Theme = 'light' | 'dark'
 export type ProxyProtocol = 'http' | 'https' | 'socks5'
@@ -51,7 +51,7 @@ export const useSettingsStore = defineStore('settings', () => {
   async function loadAppSettings() {
     try {
       const s = await getAppSettings()
-      language.value = s.language === 'en' ? 'en' : 'zh-CN'
+      language.value = normalizeLocale(s.language)
       theme.value = s.theme === 'dark' ? 'dark' : 'light'
       hideOnStartup.value = s.hide_on_startup
       proxyEnabled.value = s.proxy_enabled

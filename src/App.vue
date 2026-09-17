@@ -15,14 +15,12 @@ import {
   Upload,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import en from 'element-plus/es/locale/lang/en'
 import { listen } from '@tauri-apps/api/event'
 import type { Profile } from './types/ipc'
 import { useProfilesStore } from './stores/profiles'
 import { useSettingsStore } from './stores/settings'
 import { ensureTunnel, exitApp, getCurrentHostsContent } from './api/tauri'
-import { locale, t } from './i18n'
+import { getElLocale, locale, t } from './i18n'
 import HostsEditor from './components/HostsEditor.vue'
 import BackupDrawer from './components/drawers/BackupDrawer.vue'
 import ImportExportDrawer from './components/drawers/ImportExportDrawer.vue'
@@ -34,7 +32,7 @@ const profilesStore = useProfilesStore()
 const settingsStore = useSettingsStore()
 
 // Element Plus 组件文案随语言即时切换
-const elLocale = computed(() => (locale.value === 'zh-CN' ? zhCn : en))
+const elLocale = computed(() => getElLocale(locale.value))
 
 // 移动端：屏蔽依赖系统 hosts / 桌面文件对话框的功能入口
 const isMobile = computed(() => settingsStore.platform?.is_mobile ?? false)
@@ -218,7 +216,8 @@ async function requestExitApp() {
 
 /** Android 返回手势统一入口（返回事件总是被前端消费，不再直接退出应用） */
 function handleAndroidBack(): boolean {
-  // 1. 子抽屉（选项 / 诊断日志 / 关于等）打开 → 关闭抽屉（关闭后自动回到设置菜单）
+  // 1. 子抽屉（选项 / 诊断日志 / 关于等）打开 → 关闭抽屉
+  //    移动端设置菜单始终保持显示在背后，关闭子抽屉后用户自然回到设置菜单
   const openKey = (Object.keys(drawers.value) as (keyof typeof drawers.value)[]).find(
     (k) => drawers.value[k],
   )
@@ -248,19 +247,18 @@ function handleAndroidBack(): boolean {
     requestExitApp()
   } else {
     lastBackAt = now
-    ElMessage(t('app.pressBackAgainToExit'))
+    ElMessage({
+      message: t('app.pressBackAgainToExit'),
+      icon: '',
+      customClass: 'mobile-center-message',
+      duration: 2000,
+    })
   }
   return true
 }
 
-// 子抽屉全部关闭时（关闭图标 / 遮罩点击 / 返回手势），移动端回到设置菜单，
-// 保持「设置 → 子页面 → 返回上一步」的导航层级
-const anyDrawerOpen = computed(() => Object.values(drawers.value).some(Boolean))
-watch(anyDrawerOpen, (open, wasOpen) => {
-  if (isMobile.value && wasOpen && !open) {
-    settingsMenuVisible.value = true
-  }
-})
+// 移动端：打开子抽屉时不再关闭设置菜单（见 openDrawer），因此子抽屉关闭时设置菜单
+// 仍然保持在背后，无需再"重新打开"——避免"关闭子抽屉 → 重新弹出设置菜单"的侧边闪现。
 
 // 后台定时刷新完成 → 同步 profile 列表、编辑区与系统 Hosts 只读区
 let unlistenRemoteRefreshed: (() => void) | null = null
@@ -537,8 +535,14 @@ async function handleToggle(id: string) {
 }
 
 function openDrawer(key: keyof typeof drawers.value) {
-  settingsMenuVisible.value = false
-  // 重置所有，再打开目标
+  // 桌面端：点击菜单项时关闭设置菜单，仅展示子抽屉（保持原行为）
+  // 移动端：设置菜单保持显示，el-drawer 默认 append-to-body 且 z-index 远高于
+  //        设置菜单（z-index: 10），子抽屉会自然覆盖显示在其上层。
+  //        这样子抽屉关闭时设置菜单始终保持在背后可见，不会出现"先关再开"的侧边闪现。
+  if (!isMobile.value) {
+    settingsMenuVisible.value = false
+  }
+  // 重置所有，再打开目标（同一时间只允许一个子抽屉显示）
   Object.keys(drawers.value).forEach((k) => {
     drawers.value[k as keyof typeof drawers.value] = false
   })
@@ -1382,5 +1386,23 @@ const menuGroups = computed(() => {
   padding: 6px max(18px, var(--safe-inset-right, 0px))
     calc(6px + var(--safe-inset-bottom, 0px)) max(18px, var(--safe-inset-left, 0px));
   font-size: 13px;
+}
+
+/* ---- 移动端「再按一次退出」提示：屏幕正中、无图标、文字居中 ---- */
+:global(.mobile-center-message) {
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+:global(.mobile-center-message .el-message__icon) {
+  display: none !important;
+}
+
+:global(.mobile-center-message .el-message__content) {
+  flex: none;
+  text-align: center;
+  padding: 0;
+  margin: 0 auto;
 }
 </style>

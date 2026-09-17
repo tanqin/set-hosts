@@ -32,12 +32,19 @@ fn show_main_window(app: &tauri::AppHandle) {
 /// 创建系统托盘（桌面端）：菜单含"显示主窗口 / 退出"，左键点击显示窗口
 #[cfg(desktop)]
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
-    // 托盘菜单文案跟随已保存的语言设置
-    let en = store::load_settings_public(app.handle()).language == "en";
-    let (show_label, quit_label) = if en {
-        ("Show Main Window", "Quit")
-    } else {
-        ("显示主窗口", "退出")
+    // 托盘菜单文案跟随已保存的语言设置（与前端 LOCALES 保持一致，新增语言时这里也要追加）
+    let lang = store::load_settings_public(app.handle()).language;
+    let (show_label, quit_label) = match lang.as_str() {
+        "en" => ("Show Main Window", "Quit"),
+        "ja" => ("メインウィンドウを表示", "終了"),
+        "ko" => ("메인 창 표시", "종료"),
+        "de" => ("Hauptfenster anzeigen", "Beenden"),
+        "fr" => ("Afficher la fenêtre principale", "Quitter"),
+        "es" => ("Mostrar ventana principal", "Salir"),
+        "zh-TW" => ("顯示主視窗", "退出"),
+        "pt" => ("Mostrar janela principal", "Sair"),
+        // 默认：简体中文（也覆盖未识别的旧值）
+        _ => ("显示主窗口", "退出"),
     };
 
     let show = tauri::menu::MenuItem::with_id(app, "show", show_label, true, None::<&str>)?;
