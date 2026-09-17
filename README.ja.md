@@ -1,6 +1,6 @@
 # Set Hosts
 
-🌐 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+🌐 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
 
 クロスプラットフォーム対応の hosts 管理ツール（UI は SwitchHosts を参考）です。**Tauri 2 + Vue 3 + TypeScript + Rust** で構築されています：複数プロファイル管理、リモート hosts 購読、追記 / 上書きの 2 つの書き込みモード、自動バックアップと復元、リモート取得用プロキシに対応。デスクトップでは権限昇格（Windows UAC）でシステム hosts に書き込み DNS キャッシュを更新し、モバイルではシステム VPN 権限で DNS を引き受けてマッピングを反映させます。
 
@@ -32,7 +32,7 @@
 - **全自動**：プロファイルのスイッチをオフからオンにすると、バックエンドがローカル DNS サーバーを起動しシステム VPN 権限を要求します。UI に関連設定はありません
 - **既定の待ち受けは `127.0.0.1:5353`**（非特権ポート、root / 管理者権限不要）。使用中の場合はシステムのランダムポートへ自動的にフォールバックし、確実に起動します
 - **マッピング命中時は `A` / `AAAA` を直接応答**（TTL 1 秒で即時反映）。**それ以外は上流 DNS へ転送**（UDP。応答が切り詰められた場合は TCP で再試行）
-- **上流は設定可能**：既定はシステム DNS を自動検出（`/etc/resolv.conf`、`ipconfig`）。手動指定も可能（例 `223.5.5.5, 8.8.8.8`）
+- **上流は自動検出**：システム DNS を自動検出します（`/etc/resolv.conf`、`ipconfig`）。DNS プロキシに UI 設定はなく、ポートと上流はバックエンドが自動決定します
 - **ホットリロード**：編集・スイッチ・リモート更新・インポート後すぐにマッピングを同期。再起動は不要です
 
 ### リモート取得用プロキシ

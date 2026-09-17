@@ -22,7 +22,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const platform = ref<PlatformInfo | null>(null)
 
   // 应用设置（选项页可即时修改）
-  const language = ref<Locale>('zh-CN')
+  const language = ref<Locale>('en')
   const theme = ref<Theme>('light')
   const hideOnStartup = ref(false)
   const autoStart = ref(false)

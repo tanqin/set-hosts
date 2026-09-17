@@ -1,6 +1,6 @@
 # Set Hosts
 
-🌐 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+🌐 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
 
 Uma ferramenta multiplataforma para gerenciar o arquivo hosts (interface inspirada no SwitchHosts), construída com **Tauri 2 + Vue 3 + TypeScript + Rust**: múltiplos perfis, assinatura de hosts remotos, dois modos de escrita (anexar / sobrescrever), backup e restauração automáticos e suporte a proxy para o download remoto. No desktop, o arquivo hosts do sistema é gravado com elevação automática de privilégios (UAC no Windows) e o cache DNS é limpo; no mobile, uma autorização de VPN do sistema assume o DNS para que os mapeamentos tenham efeito.
 
@@ -32,7 +32,7 @@ O desktop altera diretamente o arquivo hosts do sistema; no mobile isso não é 
 - **Totalmente automático**: ao ativar um perfil, o backend inicia o servidor DNS local e solicita a autorização de VPN do sistema — não há nenhuma opção relacionada na interface
 - **Escuta em `127.0.0.1:5353`** por padrão (porta não privilegiada, sem root / administrador); se a porta estiver ocupada, usa-se automaticamente uma porta aleatória do sistema para garantir a inicialização
 - **Mapeamentos são respondidos diretamente** com `A` / `AAAA`, TTL de 1 segundo (ligar/desligar tem efeito imediato); **o restante é encaminhado ao DNS upstream** (UDP, com nova consulta por TCP se a resposta for truncada)
-- **Upstream configurável**: por padrão detecta o DNS do sistema (`/etc/resolv.conf`, `ipconfig`) ou pode ser informado manualmente (por exemplo `223.5.5.5, 8.8.8.8`)
+- **Upstream detectado automaticamente**: o DNS do sistema é detectado automaticamente (`/etc/resolv.conf`, `ipconfig`); o proxy DNS não possui opções na interface — porta e upstream são decididos pelo backend
 - **Atualização a quente**: os mapeamentos são ressincronizados após editar, ativar, atualizar remotos ou importar, sem reiniciar
 
 ### Proxy para download remoto

@@ -53,7 +53,7 @@ export const LOCALES: LocaleMeta[] = [
   { code: 'pt', label: 'Português (Brasil)', elLocale: ptBr },
 ]
 
-export const locale = ref<Locale>('zh-CN')
+export const locale = ref<Locale>('en')
 
 const messages: Record<Locale, Record<string, string>> = {
   'zh-CN': zhCNMessages,
@@ -69,9 +69,9 @@ const messages: Record<Locale, Record<string, string>> = {
 
 const SUPPORTED_LOCALES = LOCALES.map((l) => l.code)
 
-/** 翻译：t('key', { n: 1 })，键不存在时回退 zh-CN，再回退键名 */
+/** 翻译：t('key', { n: 1 })，键不存在时回退 en，再回退键名 */
 export function t(key: string, params?: Record<string, string | number>): string {
-  let msg = messages[locale.value][key] ?? messages['zh-CN'][key] ?? key
+  let msg = messages[locale.value][key] ?? messages['en'][key] ?? key
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       msg = msg.split(`{${k}}`).join(String(v))
@@ -85,9 +85,9 @@ export function setLocale(l: Locale) {
   locale.value = l
 }
 
-/** 把任意字符串归一化为受支持的 Locale，未知值回退到 zh-CN */
+/** 把任意字符串归一化为受支持的 Locale，未知值回退到 en */
 export function normalizeLocale(l: string): Locale {
-  return SUPPORTED_LOCALES.includes(l as Locale) ? (l as Locale) : 'zh-CN'
+  return SUPPORTED_LOCALES.includes(l as Locale) ? (l as Locale) : 'en'
 }
 
 /** 查找当前 Locale 对应的 Element Plus 语言包（找不到回退 en） */

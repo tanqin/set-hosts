@@ -1,6 +1,6 @@
 # Set Hosts
 
-🌐 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+🌐 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
 
 Ein plattformübergreifendes Tool zur Verwaltung der hosts-Datei (UI angelehnt an SwitchHosts), gebaut mit **Tauri 2 + Vue 3 + TypeScript + Rust**: mehrere Profile, Remote-Hosts-Abos, zwei Schreibmodi (Anhängen / Überschreiben), automatische Backups und Wiederherstellung sowie Proxy-Unterstützung beim Abruf. Auf dem Desktop wird die System-hosts-Datei mit automatischer Rechteerweiterung (Windows-UAC) geschrieben und der DNS-Cache geleert; auf Mobilgeräten übernimmt eine System-VPN-Berechtigung das DNS, damit die Zuordnungen wirken.
 
@@ -32,7 +32,7 @@ Der Desktop schreibt die System-hosts-Datei direkt; mobil ist das nicht möglich
 - **Vollautomatisch**: beim Einschalten eines Profils startet das Backend den lokalen DNS-Server und fordert die System-VPN-Berechtigung an — in der Oberfläche gibt es dazu keine Einstellung
 - **Standardmäßig `127.0.0.1:5353`** (kein privilegierter Port, kein root / Administrator nötig); ist der Port belegt, wird automatisch auf einen zufälligen Systemport ausgewichen, damit der Server sicher startet
 - **Treffer werden direkt mit `A` / `AAAA` beantwortet**, TTL 1 Sekunde (Umschalten wirkt sofort); **alles andere wird an den Upstream-DNS weitergeleitet** (UDP, bei abgeschnittener Antwort automatisch erneut per TCP)
-- **Upstream konfigurierbar**: standardmäßig automatische Erkennung des System-DNS (`/etc/resolv.conf`, `ipconfig`), alternativ manuell (z. B. `223.5.5.5, 8.8.8.8`)
+- **Upstream automatisch erkannt**: das System-DNS wird automatisch erkannt (`/etc/resolv.conf`, `ipconfig`); der DNS-Proxy hat keine Option in der Oberfläche — Port und Upstream entscheidet das Backend
 - **Aktualisierung ohne Neustart**: Zuordnungen werden nach Bearbeiten, Umschalten, Remote-Aktualisierung oder Import sofort synchronisiert
 
 ### Proxy für den Remote-Abruf

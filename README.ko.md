@@ -1,6 +1,6 @@
 # Set Hosts
 
-🌐 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+🌐 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
 
 크로스 플랫폼 hosts 관리 도구입니다(SwitchHosts 스타일의 UI). **Tauri 2 + Vue 3 + TypeScript + Rust**로 만들었습니다: 여러 프로필 관리, 원격 hosts 구독, 추가 / 덮어쓰기 두 가지 쓰기 모드, 자동 백업 및 복원, 원격 가져오기용 프록시 지원. 데스크톱에서는 권한 상승(Windows UAC)으로 시스템 hosts에 쓰고 DNS 캐시를 비우며, 모바일에서는 시스템 VPN 권한으로 DNS를 넘겨받아 매핑을 적용합니다.
 
@@ -32,7 +32,7 @@
 - **완전 자동**: 프로필 스위치를 껐다 켜면 백엔드가 로컬 DNS 서버를 띄우고 시스템 VPN 권한을 요청합니다. UI에 관련 설정은 없습니다
 - **기본 수신 주소는 `127.0.0.1:5353`**(비특권 포트, root / 관리자 불필요). 포트가 사용 중이면 시스템 임의 포트로 자동 대체하여 반드시 기동합니다
 - **매핑에 맞으면 `A` / `AAAA`로 바로 응답**(TTL 1초로 즉시 반영). **그 밖의 질의는 상위 DNS로 전달**(UDP, 응답이 잘리면 TCP로 재시도)
-- **상위 DNS 설정 가능**: 기본은 시스템 DNS 자동 감지(`/etc/resolv.conf`, `ipconfig`), 직접 지정도 가능(예: `223.5.5.5, 8.8.8.8`)
+- **상위 DNS 자동 감지**: 시스템 DNS를 자동 감지합니다(`/etc/resolv.conf`, `ipconfig`). DNS 프록시에는 UI 설정이 없으며 포트와 상위는 백엔드가 자동으로 결정합니다
 - **즉시 반영**: 편집·스위치·원격 새로 고침·가져오기 후 매핑이 바로 동기화되며 재시작이 필요 없습니다
 
 ### 원격 가져오기용 프록시

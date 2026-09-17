@@ -1,6 +1,6 @@
 # Set Hosts
 
-🌐 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+🌐 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
 
 一款跨平臺 hosts 設定管理工具（介面風格借鑒 SwitchHosts），基於 **Tauri 2 + Vue 3 + TypeScript + Rust** 構建：多設定檔（Profile）管理、遠端 hosts 訂閱、附加 / 覆蓋兩種寫入模式、自動備份與還原、遠端拉取支援代理；桌面端寫入時自動提權（Windows UAC）並重新整理系統 DNS 快取，行動端則透過系統 VPN 授權接管 DNS，讓對應生效。
 
@@ -32,7 +32,7 @@
 - **全自動**：設定檔開關由「關」切到「開」時，後端自動啟動本機 DNS 伺服器並申請系統 VPN 授權，介面上沒有相關設定項
 - **預設監聽 `127.0.0.1:5353`**（非特權連接埠，無需 root / 管理員）；連接埠被佔用時自動退回系統隨機連接埠，確保服務一定能啟動
 - **命中對應直接回應** `A` / `AAAA`，TTL 1 秒（確保開關設定立即生效）；**其餘查詢轉發上游** DNS（UDP，回應被截斷時自動改用 TCP 重查）
-- **上游可設定**：預設自動偵測系統 DNS（`/etc/resolv.conf`、`ipconfig`），也可手動指定（如 `223.5.5.5, 8.8.8.8`）
+- **上游自動偵測**：自動偵測系統 DNS（`/etc/resolv.conf`、`ipconfig`）；DNS 代理沒有介面設定項，連接埠與上游均由後端自動決定
 - **對應熱更新**：設定檔增刪改、啟停、重新整理遠端 hosts、匯入設定後立即同步，無需重啟
 
 ### 遠端拉取代理

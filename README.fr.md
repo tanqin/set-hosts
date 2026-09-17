@@ -1,6 +1,6 @@
 # Set Hosts
 
-🌐 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
+🌐 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt.md)
 
 Un outil multiplateforme de gestion du fichier hosts (interface inspirée de SwitchHosts), construit avec **Tauri 2 + Vue 3 + TypeScript + Rust** : gestion de plusieurs profils, abonnements à des hosts distants, deux modes d'écriture (ajout / remplacement), sauvegardes et restauration automatiques, et prise en charge d'un proxy pour le téléchargement distant. Sur ordinateur, le fichier hosts système est écrit avec élévation de privilèges automatique (UAC sous Windows) puis le cache DNS est vidé ; sur mobile, une autorisation VPN système prend en charge le DNS pour que les correspondances s'appliquent.
 
@@ -32,7 +32,7 @@ L'ordinateur modifie directement le fichier hosts système ; ce n'est pas possib
 - **Entièrement automatique** : lors de l'activation d'un profil, le backend démarre le serveur DNS local et demande l'autorisation VPN système — aucune option correspondante dans l'interface
 - **Écoute sur `127.0.0.1:5353`** par défaut (port non privilégié, aucun root / administrateur requis) ; si le port est occupé, repli automatique sur un port système aléatoire pour garantir le démarrage
 - **Les correspondances sont répondues directement** en `A` / `AAAA`, TTL de 1 seconde (l'activation est immédiate) ; **le reste est transmis au DNS en amont** (UDP, avec nouvelle requête en TCP si la réponse est tronquée)
-- **Serveur en amont configurable** : détection automatique du DNS système (`/etc/resolv.conf`, `ipconfig`) ou saisie manuelle (par ex. `223.5.5.5, 8.8.8.8`)
+- **Upstream détecté automatiquement** : le DNS système est détecté automatiquement (`/etc/resolv.conf`, `ipconfig`) ; le proxy DNS n'a aucune option dans l'interface — le port et l'upstream sont décidés par le backend
 - **Mise à jour à chaud** : les correspondances sont resynchronisées après modification, activation, actualisation distante ou import — aucun redémarrage nécessaire
 
 ### Proxy pour le téléchargement distant

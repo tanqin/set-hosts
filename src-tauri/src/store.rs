@@ -53,7 +53,7 @@ pub struct AppSettings {
 }
 
 fn default_lang() -> String {
-    "zh-CN".to_string()
+    "en".to_string()
 }
 
 fn default_theme() -> String {
