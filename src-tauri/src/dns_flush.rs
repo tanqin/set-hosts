@@ -25,7 +25,9 @@ pub fn flush_dns_cache() -> Result<String, String> {
 
 #[cfg(target_os = "windows")]
 fn flush_windows() -> Result<String, String> {
-    let output = Command::new("cmd")
+    // 必须隐藏控制台窗口：GUI 程序 spawn cmd/ipconfig 会闪黑框，
+    // 而每次应用/切换 profile 都会走到这里
+    let output = crate::process::hidden(Command::new("cmd"))
         .args(["/c", "ipconfig", "/flushdns"])
         .output()
         .map_err(|e| format!("执行 ipconfig 失败: {}", e))?;

@@ -12,6 +12,7 @@ pub mod mobile;
 pub mod models;
 pub mod parser;
 pub mod privilege;
+pub mod process;
 pub mod store;
 
 use commands::AppState;
@@ -73,7 +74,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
 #[cfg(target_os = "windows")]
 fn ensure_admin() {
     // 用 net session 检测当前是否有管理员权限
-    let is_admin = std::process::Command::new("cmd")
+    let is_admin = crate::process::hidden(std::process::Command::new("cmd"))
         .args(["/c", "net session"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -90,7 +91,7 @@ fn ensure_admin() {
     if let Ok(exe) = std::env::current_exe() {
         let exe_str = exe.to_string_lossy().replace('\'', "''");
         let ps_cmd = format!("Start-Process -FilePath '{}' -Verb RunAs -Wait", exe_str);
-        let _ = std::process::Command::new("powershell")
+        let _ = crate::process::hidden(std::process::Command::new("powershell"))
             .args(["-NoProfile", "-Command", &ps_cmd])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())

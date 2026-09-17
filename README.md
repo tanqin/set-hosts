@@ -24,8 +24,8 @@
 让 hosts 映射**无需写入系统 hosts** 也能生效，也是移动端的映射方案：
 
 - **一键启停**：默认监听 `127.0.0.1:5353`（非特权端口，无需 root / 管理员）
-- **映射直接应答**：启用 profile 中的域名直接返回映射 IP（`A` / `AAAA`），TTL 60 秒
-- **其余查询转发上游**：未命中的域名转发给上游 DNS，上游应答原样回传（UDP，应答被截断时自动改用 TCP 重查）
+- **映射直接应答**：启用 profile 中的域名直接返回映射 IP（`A` / `AAAA`），TTL 1 秒（保证开关配置立即生效）
+- **其余查询转发上游**：未命中的域名转发给上游 DNS，上游应答原样回传（UDP，应答被截断时自动改用 TCP 重查）；本应用管理过的域名会被压掉应答 TTL，避免「关闭映射期间拿到的上游应答」被客户端长期缓存，导致重新开启后不生效
 - **上游可配置**：默认自动探测系统 DNS（`/etc/resolv.conf`、`ipconfig`），也可在选项中填写（如 `223.5.5.5, 8.8.8.8`）
 - **映射热更新**：启用/禁用 profile、编辑内容、删除、刷新远程 hosts、导入配置后立即同步，无需重启服务
 - **运行状态可见**：监听地址、生效映射条数、命中映射次数、转发上游次数（每 2 秒刷新）
@@ -74,9 +74,44 @@ cd src-tauri && cargo test
 
 ### 构建发布版
 
+一键打当前系统能打的所有包（桌面端 + Android，macOS 上再加 iOS，各端互不影响）：
+
 ```bash
-npm run tauri build
+npm run build:all
 ```
+
+也可以单独打某一端：
+
+| 命令 | 说明 |
+|---|---|
+| `npm run build:check` | 体检打包环境（JDK / Android SDK / NDK / rustup target），不构建 |
+| `npm run build:desktop` | 当前系统的桌面安装包（Windows `.exe`/`.msi`、macOS `.dmg`、Linux `.deb`/`.rpm`/`.AppImage`） |
+| `npm run build:windows` / `build:macos` / `build:linux` | 显式指定系统；本机系统不匹配会直接报错，而不是抛原生工具链错误 |
+| `npm run build:android` | Android APK（默认 arm64） |
+| `npm run build:android:all` | 把全部 ABI 打进一个通用包 |
+| `npm run build:android:split` | 每个 ABI 一个包（体积小） |
+| `npm run build:android:debug` | 调试包（免签名、可调试） |
+| `npm run build:android:aab` | Google Play 上架用的 AAB |
+| `npm run build:ios` | iOS（需要 macOS + Xcode） |
+
+产物统一收集到项目根目录，文件名带版本可追溯：`dist-desktop/`（安装包）、`dist-apk/`（`set-hosts-<abi>-release.apk`）、`dist-ios/`。
+
+打包脚本在 `scripts/` 下，需要更细的控制时（选 ABI、拆分、只打某一端等）直接跑脚本：
+
+```bash
+# 只要 arm64 + armv7，并拆分成两个包
+node scripts/build-android.mjs --targets aarch64,armv7 --split-per-abi
+
+# 只打 Android、跳过桌面端
+node scripts/build-all.mjs --only android
+
+# 各脚本的完整参数
+node scripts/build-android.mjs --help
+```
+
+> **Windows PowerShell 注意**：`npm run xxx -- --flag value` 里带值的 `--flag` 会被 npm 吞掉（PowerShell 传参的老问题），需要传参时请用上面的 `node scripts/...` 写法，或用 `npm run build:android:all` 这类免传参的命令。
+
+**Android 打包环境**：JDK 17+ 与 Android SDK（含 NDK）。脚本会自动探测常见安装位置，也可以用 `--java-home` / `--sdk` 显式指定，或设置 `JAVA_HOME` / `ANDROID_HOME`；缺 rustup target 时按 `npm run build:check` 的提示执行 `rustup target add aarch64-linux-android` 等命令补齐。
 
 ## 工作原理
 

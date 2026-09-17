@@ -95,14 +95,8 @@ fn system_upstreams_impl() -> Vec<SocketAddr> {
 /// Windows：解析 `ipconfig /all` 中的 DNS 行（中英文系统均可识别）
 #[cfg(windows)]
 fn system_upstreams_impl() -> Vec<SocketAddr> {
-    use std::os::windows::process::CommandExt;
-
-    /// 隐藏子进程控制台窗口（GUI 应用下避免黑框闪现）
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-    let output = match std::process::Command::new("ipconfig")
+    let output = match crate::process::hidden(std::process::Command::new("ipconfig"))
         .arg("/all")
-        .creation_flags(CREATE_NO_WINDOW)
         .output()
     {
         Ok(o) => o,

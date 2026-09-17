@@ -52,7 +52,7 @@ fn copy_with_elevation(temp: &PathBuf, hosts: &PathBuf) -> Result<(), String> {
         temp_str, hosts_str
     );
 
-    let output = Command::new("powershell")
+    let output = crate::process::hidden(Command::new("powershell"))
         .args(["-NoProfile", "-Command", &ps_cmd])
         .output()
         .map_err(|e| format!("启动 PowerShell 失败: {}", e))?;
