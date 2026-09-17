@@ -19,7 +19,10 @@ use tokio::sync::oneshot;
 use super::{Counters, Mappings};
 
 /// 映射记录 TTL（秒）
-const MAPPING_TTL: u32 = 60;
+///
+/// 刻意取 1：配置关闭或内容改动后要「立即失效 / 立即生效」，而客户端与系统解析器
+/// 会按 TTL 缓存应答，TTL 太长就会表现为「改了却还是旧的」。
+const MAPPING_TTL: u32 = 1;
 /// 上游单次查询超时
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(4);
 /// 单个 DNS 报文最大长度（含 EDNS0 缓冲）
@@ -33,13 +36,18 @@ pub struct ServerHandle {
     pub listen_addr: SocketAddr,
     /// 关闭信号发送端
     shutdown: Option<oneshot::Sender<()>>,
+    /// 监听任务句柄：await 它即可确保端口已释放
+    watcher: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl ServerHandle {
-    /// 停止服务器：发送关闭信号后，后台任务自行退出
-    pub fn stop(&mut self) {
+    /// 停止服务器：发送关闭信号，并等待监听任务退出（端口真正释放）
+    pub async fn stop(&mut self) {
         if let Some(tx) = self.shutdown.take() {
             let _ = tx.send(());
+        }
+        if let Some(task) = self.watcher.take() {
+            let _ = task.await;
         }
     }
 }
@@ -129,18 +137,22 @@ pub async fn start(
         })
     });
 
-    // 关闭信号到达后终止监听任务
-    tokio::spawn(async move {
+    // 关闭信号到达后终止监听任务，并等待它们真正结束：只有任务结束、Socket 被释放，
+    // 端口才算真正腾出来，否则紧接着用同一端口重启会撞上 EADDRINUSE
+    let watcher = tokio::spawn(async move {
         let _ = shutdown_rx.await;
         udp_task.abort();
+        let _ = udp_task.await;
         if let Some(task) = tcp_task {
             task.abort();
+            let _ = task.await;
         }
     });
 
     Ok(ServerHandle {
         listen_addr,
         shutdown: Some(shutdown_tx),
+        watcher: Some(watcher),
     })
 }
 
@@ -212,6 +224,8 @@ async fn resolve(request: &[u8], ctx: &Context) -> Option<Vec<u8>> {
                 continue;
             };
 
+            log::info!("DNS 命中映射 {} -> {}", name, ip);
+
             match (q.query_type(), ip) {
                 (RecordType::A, IpAddr::V4(v4)) => {
                     response.add_answer(Record::from_rdata(
@@ -234,8 +248,11 @@ async fn resolve(request: &[u8], ctx: &Context) -> Option<Vec<u8>> {
                 (RecordType::A, IpAddr::V6(_)) | (RecordType::AAAA, IpAddr::V4(_)) => {
                     answered += 1;
                 }
-                // 其它类型（CNAME / MX / TXT …）与 hosts 语义无关，交给上游
-                _ => need_forward = true,
+                // 其它类型（HTTPS/SVCB/CNAME/MX/TXT …）也必须本地给出「空应答」，
+                // 绝不能转给上游：上游会返回该域名的真实公网地址，浏览器拿到后就会绕过映射
+                // 直连公网。现代浏览器（Chrome/Android）解析前会先发一条 HTTPS(type 65)
+                // 查询取「服务提示」，泄漏这一条就足以让「域名打不开、直接访问 IP 却正常」。
+                _ => answered += 1,
             }
         }
     }
@@ -244,7 +261,9 @@ async fn resolve(request: &[u8], ctx: &Context) -> Option<Vec<u8>> {
         ctx.counters.hit.fetch_add(answered, Ordering::Relaxed);
     }
 
-    if need_forward {
+    // 只要命中过映射（answered > 0）就整条本地应答：已映射的名字绝不交给上游。
+    // 只有整条请求都没命中映射时才向上游转发。
+    if need_forward && answered == 0 {
         ctx.counters.forward.fetch_add(1, Ordering::Relaxed);
         match forward(request, ctx).await {
             Ok(bytes) => return Some(bytes),
@@ -527,9 +546,8 @@ mod tests {
             ResponseCode::ServFail
         );
 
-        // 停止后端口应被释放
-        handle.stop();
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        // 停止后端口应被释放（stop 返回时监听任务已退出）
+        handle.stop().await;
         let rebound = UdpSocket::bind(handle.listen_addr).await;
         assert!(rebound.is_ok(), "停止后应能重新绑定原端口");
     }

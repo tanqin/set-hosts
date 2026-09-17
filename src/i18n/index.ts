@@ -21,6 +21,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.menu.backup': '备份与还原',
     'app.menu.importExport': '导入 / 导出',
     'app.menu.options': '选项',
+    'app.menu.diagnostics': '诊断日志',
     'app.menu.about': '关于',
     'app.addProfile': '添加本地 Hosts',
     'app.profilePlaceholder': '如：开发环境',
@@ -28,6 +29,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.deleteConfirm': '确认删除该配置？',
     'app.enabled': '启用中·自动生效',
     'app.disabled': '未启用·仅保存',
+    'app.enabledShort': '已启用',
+    'app.disabledShort': '未启用',
     'app.emptyHint': '请选择或新建一个配置',
     'app.systemHosts': '系统 Hosts',
     'app.systemHostsReadFailed': '（读取失败：{msg}）',
@@ -35,8 +38,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.systemHostsResizeHint': '拖动调整高度（最大为窗口高度的一半）',
     'app.lines': '{n} 行',
     'app.lastApplied': '上次应用：{time}',
-    'app.mobileHint':
-      '移动端无法直接修改系统 hosts：启用 profile 后请在「选项 → DNS 代理」启动本地 DNS 服务器（未接入 VPN 隧道前映射仅本机生效）。',
+    'app.mobileTabs': '配置列表',
     'status.saving': '保存中…',
     'status.saved': '已自动保存',
     'status.error': '保存失败',
@@ -99,36 +101,6 @@ const messages: Record<Locale, Record<string, string>> = {
     'options.proxy.autoRefresh': '启动时自动刷新',
     'options.proxy.autoRefreshHint': '应用启动时自动拉取已启用远程 hosts 的最新内容',
 
-    // DNS 代理（内置本地 DNS 服务器）
-    'options.tab.dns': 'DNS 代理',
-    'options.dns.running': '运行中',
-    'options.dns.stopped': '未运行',
-    'options.dns.start': '启动',
-    'options.dns.stop': '停止',
-    'options.dns.refresh': '刷新状态',
-    'options.dns.listenAddr': '监听地址',
-    'options.dns.mappings': '生效映射',
-    'options.dns.hitCount': '命中映射',
-    'options.dns.forwardCount': '转发上游',
-    'options.dns.upstreamList': '上游服务器',
-    'options.dns.upstream': '上游 DNS',
-    'options.dns.upstreamPlaceholder': '留空自动探测（如 223.5.5.5, 8.8.8.8）',
-    'options.dns.port': '监听端口',
-    'options.dns.portHint': '默认 {port}（非特权端口，无需 root / 管理员权限）',
-    'options.dns.autoStart': '启动时自动运行',
-    'options.dns.autoStartHint': '应用启动时自动开启本地 DNS 服务器',
-    'options.dns.hint':
-      '本地 DNS 服务器会把启用 profile 中的域名直接解析为映射 IP，其余查询转发给上游 DNS。',
-    'options.dns.verifyHint': '本机验证：nslookup -port={port} 域名 127.0.0.1',
-    'options.dns.tunnelOk': 'VPN 隧道已接管系统 DNS，映射对全系统生效。',
-    'options.dns.tunnelPending':
-      '尚未接管系统 DNS：移动端需接入 VPN 隧道（Android VpnService / iOS Network Extension）后才会全局生效。',
-    'options.dns.started': 'DNS 代理已启动',
-    'options.dns.stoppedMsg': 'DNS 代理已停止',
-    'options.dns.startFailed': '启动 DNS 代理失败: {msg}',
-    'options.dns.stopFailed': '停止 DNS 代理失败: {msg}',
-    'options.dns.statusFailed': '获取 DNS 代理状态失败: {msg}',
-
     // 高级
     'advanced.platformInfo': '平台信息',
     'advanced.os': '操作系统',
@@ -185,7 +157,20 @@ const messages: Record<Locale, Record<string, string>> = {
     'about.techstack': '技术栈',
     'about.platforms': '支持平台',
     'about.desktop': '桌面端：直接修改系统 hosts 文件',
-    'about.mobile': '移动端：通过本地 DNS 代理生效，无需 root/越狱',
+    'about.mobile':
+      '移动端：无法修改系统 hosts，首次开启配置时申请一次系统 VPN 授权，之后自动生效，无需 root/越狱',
+
+    // 诊断日志
+    'diagnostics.title': '诊断日志',
+    'diagnostics.refresh': '刷新',
+    'diagnostics.copy': '复制全部',
+    'diagnostics.clear': '清空',
+    'diagnostics.copied': '已复制，直接粘贴发送即可',
+    'diagnostics.copyFailed': '复制失败，请长按文本框手动全选复制',
+    'diagnostics.cleared': '诊断日志已清空',
+    'diagnostics.clearConfirm': '确认清空诊断日志？',
+    'diagnostics.hint':
+      '把整段内容复制发给开发者即可。重点看三项：「隧道已建立」是否为 true、「接到 DNS 查询」是否在增长、日志里有没有出现你映射的那个域名。',
 
     // 编辑器
     'editor.placeholder': '',
@@ -216,6 +201,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.menu.backup': 'Backup & Restore',
     'app.menu.importExport': 'Import / Export',
     'app.menu.options': 'Options',
+    'app.menu.diagnostics': 'Diagnostics',
     'app.menu.about': 'About',
     'app.addProfile': 'Add Local Hosts',
     'app.profilePlaceholder': 'e.g. Dev environment',
@@ -223,6 +209,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.deleteConfirm': 'Delete this profile?',
     'app.enabled': 'Enabled · Auto-applied',
     'app.disabled': 'Disabled · Saved only',
+    'app.enabledShort': 'Enabled',
+    'app.disabledShort': 'Disabled',
     'app.emptyHint': 'Select or create a profile',
     'app.systemHosts': 'System Hosts',
     'app.systemHostsReadFailed': '(Failed to read: {msg})',
@@ -230,8 +218,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'app.systemHostsResizeHint': 'Drag to resize (max: half of the window height)',
     'app.lines': '{n} lines',
     'app.lastApplied': 'Last applied: {time}',
-    'app.mobileHint':
-      'Mobile cannot edit the system hosts directly: enable a profile, then start the local DNS server in Options → DNS Proxy (mappings stay local until the VPN tunnel is wired up).',
+    'app.mobileTabs': 'Profiles',
     'status.saving': 'Saving…',
     'status.saved': 'Auto-saved',
     'status.error': 'Save failed',
@@ -295,36 +282,6 @@ const messages: Record<Locale, Record<string, string>> = {
     'options.proxy.autoRefresh': 'Auto refresh on startup',
     'options.proxy.autoRefreshHint': 'Automatically fetch the latest content of enabled remote hosts on launch',
 
-    // DNS proxy (built-in local DNS server)
-    'options.tab.dns': 'DNS Proxy',
-    'options.dns.running': 'Running',
-    'options.dns.stopped': 'Stopped',
-    'options.dns.start': 'Start',
-    'options.dns.stop': 'Stop',
-    'options.dns.refresh': 'Refresh status',
-    'options.dns.listenAddr': 'Listen address',
-    'options.dns.mappings': 'Active mappings',
-    'options.dns.hitCount': 'Mapped answers',
-    'options.dns.forwardCount': 'Forwarded',
-    'options.dns.upstreamList': 'Upstream servers',
-    'options.dns.upstream': 'Upstream DNS',
-    'options.dns.upstreamPlaceholder': 'Empty = auto-detect (e.g. 223.5.5.5, 8.8.8.8)',
-    'options.dns.port': 'Listen port',
-    'options.dns.portHint': 'Default {port} (unprivileged port, no root / admin required)',
-    'options.dns.autoStart': 'Run on startup',
-    'options.dns.autoStartHint': 'Start the local DNS server automatically when the app launches',
-    'options.dns.hint':
-      'The local DNS server answers domains found in enabled profiles with their mapped IPs and forwards everything else to the upstream DNS.',
-    'options.dns.verifyHint': 'Verify locally: nslookup -port={port} domain 127.0.0.1',
-    'options.dns.tunnelOk': 'The VPN tunnel has taken over system DNS; mappings apply system-wide.',
-    'options.dns.tunnelPending':
-      'System DNS is not captured yet: on mobile a VPN tunnel (Android VpnService / iOS Network Extension) is required for system-wide effect.',
-    'options.dns.started': 'DNS proxy started',
-    'options.dns.stoppedMsg': 'DNS proxy stopped',
-    'options.dns.startFailed': 'Failed to start DNS proxy: {msg}',
-    'options.dns.stopFailed': 'Failed to stop DNS proxy: {msg}',
-    'options.dns.statusFailed': 'Failed to read DNS proxy status: {msg}',
-
     // Advanced
     'advanced.platformInfo': 'Platform info',
     'advanced.os': 'OS',
@@ -381,7 +338,20 @@ const messages: Record<Locale, Record<string, string>> = {
     'about.techstack': 'Tech stack',
     'about.platforms': 'Platforms',
     'about.desktop': 'Desktop: edits the system hosts file directly',
-    'about.mobile': 'Mobile: applies via a local DNS proxy, no root/jailbreak required',
+    'about.mobile':
+      'Mobile: the system hosts file is not writable, so enabling a profile asks for the system VPN permission once and then applies automatically — no root/jailbreak required',
+
+    // Diagnostics
+    'diagnostics.title': 'Diagnostics',
+    'diagnostics.refresh': 'Refresh',
+    'diagnostics.copy': 'Copy all',
+    'diagnostics.clear': 'Clear',
+    'diagnostics.copied': 'Copied — just paste it',
+    'diagnostics.copyFailed': 'Copy failed, long-press the box to select manually',
+    'diagnostics.cleared': 'Diagnostics cleared',
+    'diagnostics.clearConfirm': 'Clear the diagnostics log?',
+    'diagnostics.hint':
+      'Copy the whole report and send it to the developer. Three things matter: whether "tunnel established" is true, whether the DNS query counter is growing, and whether your mapped domain shows up in the log.',
 
     // Editor
     'editor.placeholder': '',

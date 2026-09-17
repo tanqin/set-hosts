@@ -48,6 +48,11 @@ pub struct DnsProxy {
     listen_addr: RwLock<Option<SocketAddr>>,
     /// 是否正在运行
     running: AtomicBool,
+    /// 最近一次启动失败的原因（成功启动后清空，供诊断报告展示）
+    ///
+    /// 移动端「映射不生效」时这是最关键的一条信息：日志只进 logcat，用户看不到，
+    /// 而失败原因（端口占用 / 上游不可用）恰恰决定了该怎么修。
+    last_error: RwLock<Option<String>>,
 }
 
 impl Default for DnsProxy {
@@ -59,6 +64,7 @@ impl Default for DnsProxy {
             server: Mutex::new(None),
             listen_addr: RwLock::new(None),
             running: AtomicBool::new(false),
+            last_error: RwLock::new(None),
         }
     }
 }
@@ -84,6 +90,19 @@ impl DnsProxy {
             .len()
     }
 
+    /// 映射表快照（按域名排序，供诊断报告展示）
+    pub fn mapping_entries(&self) -> Vec<(String, IpAddr)> {
+        let mut entries: Vec<(String, IpAddr)> = self
+            .mappings
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .map(|(domain, ip)| (domain.clone(), *ip))
+            .collect();
+        entries.sort();
+        entries
+    }
+
     /// 是否正在运行
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::Relaxed)
@@ -94,39 +113,100 @@ impl DnsProxy {
         *self.listen_addr.read().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// 最近一次启动失败的原因（成功启动后为 None）
+    pub fn last_error(&self) -> Option<String> {
+        self.last_error
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// 记录启动失败原因，并清掉「正在运行」的假象
+    fn record_error(&self, reason: String) {
+        log::error!("本地 DNS 服务器启动失败: {}", reason);
+        *self
+            .last_error
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = Some(reason);
+    }
+
     /// 启动 DNS 服务器（重复调用会先停止旧实例再按新参数启动）
+    ///
+    /// 首选端口绑不上时会退到「系统随机分配端口」重试一次：移动端整机 DNS 都指向
+    /// 这里，而端口号是几并不重要（隧道始终按「实际监听端口」转发），真正致命的是
+    /// **起不来**——服务器没起来时隧道一旦建立，全机域名解析都会超时。
+    /// Android 上 5353 是 mDNS 端口、常被系统或别的应用占着，这个回退是必需的。
     pub async fn start(
         &self,
         bind_addr: SocketAddr,
         upstream: Vec<SocketAddr>,
     ) -> Result<SocketAddr, String> {
         if upstream.is_empty() {
-            return Err("未确定上游 DNS 服务器".to_string());
+            let reason = "未确定上游 DNS 服务器".to_string();
+            self.record_error(reason.clone());
+            return Err(reason);
         }
         // 幂等：先停掉旧实例，避免端口占用
         self.stop().await?;
 
         *self.upstream.write().unwrap_or_else(|e| e.into_inner()) = upstream;
 
-        let handle = server::start(
+        let handle = match server::start(
             bind_addr,
             self.mappings.clone(),
             self.upstream.clone(),
             self.counters.clone(),
         )
-        .await?;
+        .await
+        {
+            Ok(handle) => handle,
+            Err(err) if bind_addr.port() != 0 => {
+                log::warn!("{}；改用系统随机端口重试", err);
+                match server::start(
+                    SocketAddr::from((bind_addr.ip(), 0)),
+                    self.mappings.clone(),
+                    self.upstream.clone(),
+                    self.counters.clone(),
+                )
+                .await
+                {
+                    Ok(handle) => {
+                        log::warn!(
+                            "本地 DNS 服务器已改用端口 {}（首选 {} 不可用）",
+                            handle.listen_addr.port(),
+                            bind_addr.port()
+                        );
+                        handle
+                    }
+                    Err(err2) => {
+                        let reason = format!("{err}；换随机端口重试也失败: {err2}");
+                        self.record_error(reason.clone());
+                        return Err(reason);
+                    }
+                }
+            }
+            Err(err) => {
+                self.record_error(err.clone());
+                return Err(err);
+            }
+        };
 
         let addr = handle.listen_addr;
         *self.listen_addr.write().unwrap_or_else(|e| e.into_inner()) = Some(addr);
         *self.server.lock().await = Some(handle);
         self.running.store(true, Ordering::Relaxed);
+        *self
+            .last_error
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = None;
         Ok(addr)
     }
 
     /// 停止 DNS 服务器（未运行时为空操作）
     pub async fn stop(&self) -> Result<(), String> {
         if let Some(mut handle) = self.server.lock().await.take() {
-            handle.stop();
+            // 等待监听任务退出后再返回，保证端口已释放
+            handle.stop().await;
         }
         self.running.store(false, Ordering::Relaxed);
         *self.listen_addr.write().unwrap_or_else(|e| e.into_inner()) = None;
@@ -268,5 +348,30 @@ mod tests {
         assert_eq!(status.mapping_count, 1);
         assert!(status.listen_addr.is_none());
         assert!(status.upstream.is_empty());
+    }
+
+    /// 首选端口被占用时必须能改用系统随机端口启动
+    ///
+    /// 这是真机上的头号故障：Android 的 5353 是 mDNS 端口、常被系统占着，
+    /// 之前绑定失败会让整个「本地 DNS 服务器 + VPN 隧道」链路彻底失效——
+    /// 而隧道按「实际监听端口」转发，端口号是几根本不重要，起不来才致命。
+    #[tokio::test]
+    async fn falls_back_to_ephemeral_port_when_preferred_port_is_taken() {
+        let squatter = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let taken = squatter.local_addr().unwrap().port();
+
+        let proxy = DnsProxy::default();
+        let upstream = vec!["223.5.5.5:53".parse().unwrap()];
+        let addr = proxy
+            .start(SocketAddr::from(([127, 0, 0, 1], taken)), upstream)
+            .await
+            .expect("首选端口被占用时应退到随机端口并启动成功");
+
+        assert_ne!(addr.port(), taken);
+        assert!(proxy.is_running());
+        assert_eq!(proxy.listen_addr().map(|a| a.port()), Some(addr.port()));
+        assert!(proxy.last_error().is_none());
+        proxy.stop().await.unwrap();
+        assert!(!proxy.is_running());
     }
 }

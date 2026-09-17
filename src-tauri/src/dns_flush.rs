@@ -1,5 +1,6 @@
 //! 跨平台 DNS 缓存刷新
 
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 use std::process::Command;
 
 /// 刷新系统 DNS 缓存，返回命令输出摘要

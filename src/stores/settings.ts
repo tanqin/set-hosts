@@ -36,10 +36,8 @@ export const useSettingsStore = defineStore('settings', () => {
   // 写入系统 hosts 的模式：追加（托管块）/ 覆盖（完全替换）
   const writeMode = ref<WriteMode>('append')
 
-  // DNS 代理：内置本地 DNS 服务器（移动端靠它让映射生效）
-  const dnsProxyAutoStart = ref(false)
-  const dnsProxyPort = ref(0)
-  const dnsUpstream = ref('')
+  // 注：内置 DNS 服务器的端口 / 上游 / 自动运行已取消全部配置入口，
+  // 桌面端不使用它，移动端由后端随应用启动固定开启，前端无需再保存这些设置。
 
   async function loadPlatform() {
     try {
@@ -64,9 +62,6 @@ export const useSettingsStore = defineStore('settings', () => {
       proxyPort.value = s.proxy_port
       remoteAutoRefresh.value = s.remote_auto_refresh
       writeMode.value = s.write_mode === 'overwrite' ? 'overwrite' : 'append'
-      dnsProxyAutoStart.value = s.dns_proxy_auto_start
-      dnsProxyPort.value = s.dns_proxy_port
-      dnsUpstream.value = s.dns_upstream
     } catch {
       // 非 Tauri 环境（纯浏览器调试）使用默认值
     }
@@ -159,30 +154,6 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  /** 切换 DNS 代理开机自动运行：立即持久化，下次启动应用时生效 */
-  async function setDnsProxyAutoStart(v: boolean) {
-    dnsProxyAutoStart.value = v
-    try {
-      await saveAppSettings({ dnsProxyAutoStart: v })
-    } catch (e: any) {
-      ElMessage.error(t('options.saveFailed', { msg: e }))
-    }
-  }
-
-  /** 保存 DNS 代理端口 / 上游 DNS：启动代理时读取 */
-  async function saveDnsProxySettings(params: { port?: number; upstream?: string }) {
-    if (params.port !== undefined) dnsProxyPort.value = params.port
-    if (params.upstream !== undefined) dnsUpstream.value = params.upstream.trim()
-    try {
-      await saveAppSettings({
-        dnsProxyPort: dnsProxyPort.value,
-        dnsUpstream: dnsUpstream.value,
-      })
-    } catch (e: any) {
-      ElMessage.error(t('options.saveFailed', { msg: e }))
-    }
-  }
-
   /** 切换写入模式（追加 / 覆盖）：立即持久化，下次写入系统 hosts 时生效 */
   async function setWriteMode(v: WriteMode) {
     writeMode.value = v
@@ -224,9 +195,6 @@ export const useSettingsStore = defineStore('settings', () => {
     proxyPort,
     remoteAutoRefresh,
     writeMode,
-    dnsProxyAutoStart,
-    dnsProxyPort,
-    dnsUpstream,
     loadPlatform,
     loadAppSettings,
     setLanguage,
@@ -237,8 +205,6 @@ export const useSettingsStore = defineStore('settings', () => {
     saveProxySettings,
     setRemoteAutoRefresh,
     setWriteMode,
-    setDnsProxyAutoStart,
-    saveDnsProxySettings,
     exportData,
     importData,
     readCurrentHosts,

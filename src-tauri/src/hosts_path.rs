@@ -50,7 +50,7 @@ pub fn is_desktop() -> bool {
     cfg!(any(target_os = "windows", target_os = "linux", target_os = "macos"))
 }
 
-/// 是否为移动平台（走 DNS 代理）
+/// 是否为移动平台（靠内置 DNS 服务器 + VPN 隧道让映射生效）
 pub fn is_mobile() -> bool {
     cfg!(any(target_os = "android", target_os = "ios"))
 }

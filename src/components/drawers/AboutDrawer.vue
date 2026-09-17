@@ -1,8 +1,16 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { t } from '../../i18n'
+import { useSettingsStore } from '../../stores/settings'
 
 defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ 'update:visible': [boolean] }>()
+
+const settingsStore = useSettingsStore()
+
+// 移动端窄屏按 35% 宽度会把「版本 / 技术栈 / 支持平台」的标签列挤成竖排，
+// 因此移动端铺满整屏，桌面端仍保持侧栏式抽屉。
+const drawerSize = computed(() => (settingsStore.platform?.is_mobile ? '100%' : '35%'))
 </script>
 
 <template>
@@ -10,7 +18,7 @@ const emit = defineEmits<{ 'update:visible': [boolean] }>()
     :model-value="visible"
     :title="t('about.title')"
     direction="rtl"
-    size="35%"
+    :size="drawerSize"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div style="text-align: center; padding: 24px 0">

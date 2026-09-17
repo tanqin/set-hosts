@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Close,
   Delete,
+  Document,
   Edit,
   Grid,
   Plus,
@@ -20,12 +21,13 @@ import { listen } from '@tauri-apps/api/event'
 import type { Profile } from './types/ipc'
 import { useProfilesStore } from './stores/profiles'
 import { useSettingsStore } from './stores/settings'
-import { getCurrentHostsContent } from './api/tauri'
+import { ensureTunnel, getCurrentHostsContent } from './api/tauri'
 import { locale, t } from './i18n'
 import HostsEditor from './components/HostsEditor.vue'
 import BackupDrawer from './components/drawers/BackupDrawer.vue'
 import ImportExportDrawer from './components/drawers/ImportExportDrawer.vue'
 import OptionsDrawer from './components/drawers/OptionsDrawer.vue'
+import DiagnosticsDrawer from './components/drawers/DiagnosticsDrawer.vue'
 import AboutDrawer from './components/drawers/AboutDrawer.vue'
 
 const profilesStore = useProfilesStore()
@@ -185,6 +187,7 @@ const drawers = ref({
   backup: false,
   importExport: false,
   options: false,
+  diagnostics: false,
   about: false,
 })
 
@@ -205,21 +208,60 @@ async function setupRemoteRefreshListener() {
   }
 }
 
+// 系统 VPN 授权结果（移动端把配置开关从关切到开时弹出）→ 拒绝则回滚开关
+let unlistenVpnConsent: (() => void) | null = null
+
+async function setupVpnConsentListener() {
+  try {
+    unlistenVpnConsent = await listen<{ granted: boolean }>('vpn-consent', ({ payload }) => {
+      profilesStore.handleVpnConsentResult(payload?.granted === true)
+    })
+  } catch {
+    // 非 Tauri 环境（纯浏览器调试）忽略
+  }
+}
+
 onMounted(async () => {
   window.addEventListener('resize', onWindowResize)
+  document.addEventListener('visibilitychange', onDocumentVisibilityChange)
   setupRemoteRefreshListener()
+  setupVpnConsentListener()
   await settingsStore.loadPlatform()
   await profilesStore.load()
   loadSystemHosts()
   if (profilesStore.activeId) {
     currentContent.value = await profilesStore.loadContent(profilesStore.activeId)
   }
+  // 移动端：启动后 / 回到前台时确保 VPN 隧道已接管系统 DNS
+  ensureMobileTunnel()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onWindowResize)
+  document.removeEventListener('visibilitychange', onDocumentVisibilityChange)
   unlistenRemoteRefreshed?.()
+  unlistenVpnConsent?.()
 })
+
+/**
+ * 移动端自愈：重新回到前台时确保隧道仍接管着系统 DNS。
+ *
+ * VPN 授权由系统按包名永久记忆，已授权后这里不会再弹窗；若系统回收进程、
+ * 或授权被其它 VPN 应用抢占，这里会静默重新接管。后端只在「存在已启用的
+ * 配置、且用户没有拒绝过授权」时才会真正接管，因此不会反复打扰用户。
+ */
+function onDocumentVisibilityChange() {
+  if (document.visibilityState === 'visible') ensureMobileTunnel()
+}
+
+async function ensureMobileTunnel() {
+  if (!isMobile.value) return
+  try {
+    await ensureTunnel()
+  } catch {
+    // 忽略：自愈失败不影响正常使用，用户可在「选项 → 高级」点「重新授权」手动重试
+  }
+}
 
 const activeProfile = computed(() =>
   profilesStore.profiles.find((p) => p.id === profilesStore.activeId),
@@ -448,6 +490,8 @@ const menuGroups = computed(() => {
       title: t('app.menuGroup.tools'),
       items: [
         { key: 'options' as const, label: t('app.menu.options'), icon: Grid },
+        // 诊断日志在移动端尤其重要：真机上没有 adb 也能把隧道状态贴给开发者
+        { key: 'diagnostics' as const, label: t('app.menu.diagnostics'), icon: Document },
         { key: 'about' as const, label: t('app.menu.about'), icon: Setting },
       ],
     },
@@ -467,7 +511,12 @@ const menuGroups = computed(() => {
 
 <template>
   <el-config-provider :locale="elLocale">
-    <div class="app" :class="{ resizing: systemHostsDragging }" @keydown="onKeydown" tabindex="0">
+    <div
+      class="app"
+      :class="{ resizing: systemHostsDragging, mobile: isMobile }"
+      @keydown="onKeydown"
+      tabindex="0"
+    >
       <!-- 顶部栏 -->
       <div class="titlebar">
         <div class="titlebar-left">
@@ -492,19 +541,30 @@ const menuGroups = computed(() => {
         </div>
       </div>
 
-      <!-- 移动端提示：无法直接修改系统 hosts -->
-      <el-alert
-        v-if="isMobile"
-        :title="t('app.mobileHint')"
-        type="warning"
-        :closable="false"
-        class="mobile-hint"
-      />
-
       <!-- 主体 -->
       <div class="body">
-        <!-- 左侧 profile 列表 -->
-        <div class="sidebar">
+        <!-- 移动端：配置列表以横向 Tab 展示在编辑区上方，数量多时可横向滚动 -->
+        <div
+          v-if="isMobile && profilesStore.profiles.length"
+          class="profile-tabs"
+          :aria-label="t('app.mobileTabs')"
+        >
+          <button
+            v-for="p in profilesStore.profiles"
+            :key="p.id"
+            type="button"
+            class="profile-tab"
+            :class="{ active: p.id === profilesStore.activeId, enabled: p.enabled }"
+            @click="handleSelect(p.id)"
+          >
+            <span class="tab-dot" aria-hidden="true"></span>
+            <span class="tab-name">{{ p.name }}</span>
+            <span v-if="p.is_remote" class="tab-remote">{{ t('app.remoteTag') }}</span>
+          </button>
+        </div>
+
+        <!-- 左侧 profile 列表（桌面端） -->
+        <div v-if="!isMobile" class="sidebar">
           <div
             v-for="p in profilesStore.profiles"
             :key="p.id"
@@ -547,8 +607,8 @@ const menuGroups = computed(() => {
           <div class="editor-wrap">
             <div class="panel-header">
               <div class="panel-title">
-                <span>Hosts</span>
-                <el-tag v-if="activeProfile" size="small" type="success" effect="plain">
+                <span v-if="!isMobile">Hosts</span>
+                <el-tag v-if="activeProfile && !isMobile" size="small" type="success" effect="plain">
                   {{ activeProfile.name }}
                 </el-tag>
                 <el-tag
@@ -557,10 +617,15 @@ const menuGroups = computed(() => {
                   :type="activeProfile.enabled ? 'success' : 'info'"
                   effect="light"
                 >
-                  {{ activeProfile.enabled ? t('app.enabled') : t('app.disabled') }}
+                  <template v-if="isMobile">
+                    {{ activeProfile.enabled ? t('app.enabledShort') : t('app.disabledShort') }}
+                  </template>
+                  <template v-else>
+                    {{ activeProfile.enabled ? t('app.enabled') : t('app.disabled') }}
+                  </template>
                 </el-tag>
                 <el-tooltip
-                  v-if="activeProfile?.is_remote && activeProfile.url"
+                  v-if="activeProfile?.is_remote && activeProfile.url && !isMobile"
                   :content="activeProfile.url"
                   placement="top"
                 >
@@ -568,7 +633,7 @@ const menuGroups = computed(() => {
                 </el-tooltip>
               </div>
               <el-button
-                v-if="activeProfile?.is_remote"
+                v-if="activeProfile?.is_remote && !isMobile"
                 text
                 size="small"
                 :icon="Refresh"
@@ -576,6 +641,23 @@ const menuGroups = computed(() => {
               >
                 {{ t('app.refreshRemote') }}
               </el-button>
+              <!-- 移动端触屏无 hover，把配置管理入口集中到编辑区头部 -->
+              <div v-if="isMobile && activeProfile" class="mobile-actions">
+                <el-switch
+                  :model-value="activeProfile.enabled"
+                  size="large"
+                  inline-prompt
+                  @change="handleToggle(activeProfile.id)"
+                />
+                <el-button
+                  v-if="activeProfile.is_remote"
+                  text
+                  :icon="Refresh"
+                  @click="handleRefreshRemote(activeProfile.id)"
+                />
+                <el-button text :icon="Edit" @click="handleRename(activeProfile.id, activeProfile.name)" />
+                <el-button text type="danger" :icon="Delete" @click="handleDelete(activeProfile.id)" />
+              </div>
             </div>
             <div class="editor-body">
               <HostsEditor
@@ -657,6 +739,7 @@ const menuGroups = computed(() => {
       <BackupDrawer v-model:visible="drawers.backup" @restored="loadSystemHosts" />
       <ImportExportDrawer v-model:visible="drawers.importExport" />
       <OptionsDrawer v-model:visible="drawers.options" />
+      <DiagnosticsDrawer v-model:visible="drawers.diagnostics" />
       <AboutDrawer v-model:visible="drawers.about" />
 
       <!-- 新增远程 hosts 对话框 -->
@@ -722,22 +805,17 @@ const menuGroups = computed(() => {
 }
 
 .titlebar {
-  height: 36px;
+  /* 高度 = 标题栏 + 顶部安全区（状态栏），避免移动端顶部按钮被系统状态栏压住点不到 */
+  height: calc(36px + var(--safe-inset-top, 0px));
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
+  padding: var(--safe-inset-top, 0px) 8px 0;
   background: var(--el-fill-color-light);
   border-bottom: 1px solid var(--el-border-color);
   -webkit-user-select: none;
   user-select: none;
-}
-
-/* 移动端提示横幅 */
-.mobile-hint {
-  flex-shrink: 0;
-  margin: 4px 8px 0;
 }
 
 .titlebar-left,
@@ -1021,12 +1099,13 @@ const menuGroups = computed(() => {
 }
 
 .statusbar {
-  height: 24px;
+  /* 高度 = 状态栏 + 底部安全区（全面屏手势条） */
+  height: calc(24px + var(--safe-inset-bottom, 0px));
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 0 12px;
+  padding: 0 12px var(--safe-inset-bottom, 0px);
   background: var(--el-fill-color-light);
   border-top: 1px solid var(--el-border-color);
   font-size: 11px;
@@ -1053,5 +1132,182 @@ const menuGroups = computed(() => {
 .slide-right-enter-from,
 .slide-right-leave-to {
   transform: translateX(100%);
+}
+
+/* ==========================================================================
+   移动端适配
+   ========================================================================== */
+
+/* ---- 顶部栏：整体加高，图标放大到易点按的尺寸 ---- */
+.app.mobile .titlebar {
+  height: calc(52px + var(--safe-inset-top, 0px));
+  padding: var(--safe-inset-top, 0px) 14px 0;
+}
+
+.app.mobile .titlebar :deep(.el-button) {
+  width: 42px;
+  height: 42px;
+  font-size: 24px;
+}
+
+.app.mobile .titlebar :deep(.el-button .el-icon) {
+  font-size: 24px;
+}
+
+.app.mobile .app-title {
+  font-size: 16px;
+  margin-left: 8px;
+}
+
+/* ---- 主体：配置列表从左侧栏改为编辑区上方的横向 Tab ---- */
+.app.mobile .body {
+  flex-direction: column;
+}
+
+.profile-tabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--el-fill-color-lighter);
+  border-bottom: 1px solid var(--el-border-color);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--el-border-color-darker) transparent;
+}
+
+/* 数量多时显示细滚动条，提示可横向滑动 */
+.profile-tabs::-webkit-scrollbar {
+  height: 5px;
+}
+
+.profile-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.profile-tabs::-webkit-scrollbar-thumb {
+  background: var(--el-border-color);
+  border-radius: 3px;
+}
+
+.profile-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 66vw;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  color: var(--el-text-color-regular);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.profile-tab.active {
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-5);
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+
+.profile-tab .tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 小圆点标示该配置是否启用 */
+.profile-tab .tab-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--el-text-color-placeholder);
+}
+
+.profile-tab.enabled .tab-dot {
+  background: var(--el-color-success);
+}
+
+.profile-tab .tab-remote {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+/* ---- 编辑区头部：状态标签 + 配置管理入口 ---- */
+.app.mobile .panel-header {
+  height: auto;
+  min-height: 48px;
+  padding: 6px 14px;
+}
+
+.app.mobile .panel-title {
+  font-size: 13px;
+  cursor: default;
+}
+
+.mobile-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.mobile-actions :deep(.el-button) {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 20px;
+  margin: 0;
+}
+
+.mobile-actions :deep(.el-button .el-icon) {
+  font-size: 20px;
+}
+
+/* ---- 设置菜单：加宽并加大条目，方便触屏 ---- */
+.app.mobile .settings-menu {
+  width: 78vw;
+  max-width: 320px;
+}
+
+.app.mobile .settings-menu-header {
+  padding: 14px;
+  font-size: 16px;
+}
+
+.app.mobile .menu-group-title {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.app.mobile .menu-item {
+  padding: 14px;
+  font-size: 15px;
+}
+
+/* ---- 状态栏：字号加大 + 左右留出更多边距，避免被圆角屏幕裁切 ---- */
+.app.mobile .statusbar {
+  height: auto;
+  min-height: calc(36px + var(--safe-inset-bottom, 0px));
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 6px max(18px, var(--safe-inset-right, 0px))
+    calc(6px + var(--safe-inset-bottom, 0px)) max(18px, var(--safe-inset-left, 0px));
+  font-size: 13px;
 }
 </style>

@@ -1,15 +1,7 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import {
-  openHostsFolder,
-  getDataDir,
-  changeDataDir,
-  getProxyStatus,
-  startDnsProxy,
-  stopDnsProxy
-} from '../../api/tauri'
-import type { ProxyStatus } from '../../types/ipc'
+import { openHostsFolder, getDataDir, changeDataDir } from '../../api/tauri'
 import { useSettingsStore, type WriteMode } from '../../stores/settings'
 import { t, type Locale } from '../../i18n'
 import { invoke } from '@tauri-apps/api/core'
@@ -102,76 +94,9 @@ async function handleOpenHostsFolder() {
   }
 }
 
-// ---- DNS 代理（内置本地 DNS 服务器）----
-
-/** 默认监听端口，与后端 dns_proxy::DEFAULT_PORT 保持一致 */
-const DNS_DEFAULT_PORT = 5353
-/** 状态轮询定时器：仅在「DNS 代理」标签页可见时运行 */
-let proxyTimer: number | undefined
-
-const proxyStatus = ref<ProxyStatus | null>(null)
-const proxyBusy = ref(false)
-const dnsPortInput = ref<number | null>(null)
-const dnsUpstreamInput = ref('')
-
-function stopProxyPolling() {
-  if (proxyTimer !== undefined) {
-    window.clearInterval(proxyTimer)
-    proxyTimer = undefined
-  }
-}
-
-async function loadProxyStatus() {
-  try {
-    proxyStatus.value = await getProxyStatus()
-  } catch (e: any) {
-    ElMessage.error(t('options.dns.statusFailed', { msg: e }))
-  }
-}
-
-watch([() => props.visible, activeTab], ([visible, tab]) => {
-  stopProxyPolling()
-  if (!visible || tab !== 'dns') return
-  dnsPortInput.value = settingsStore.dnsProxyPort || 0
-  dnsUpstreamInput.value = settingsStore.dnsUpstream
-  loadProxyStatus()
-  // 运行统计（命中 / 转发）实时变化，定时刷新
-  proxyTimer = window.setInterval(loadProxyStatus, 2000)
-})
-
-onUnmounted(stopProxyPolling)
-
-async function handleStartProxy() {
-  proxyBusy.value = true
-  try {
-    const port = dnsPortInput.value ?? 0
-    // 端口与上游 DNS 一并持久化，下次启动代理时读取
-    await settingsStore.saveDnsProxySettings({ port, upstream: dnsUpstreamInput.value })
-    proxyStatus.value = await startDnsProxy(port, dnsUpstreamInput.value)
-    ElMessage.success(t('options.dns.started'))
-  } catch (e: any) {
-    ElMessage.error(t('options.dns.startFailed', { msg: e }))
-  } finally {
-    proxyBusy.value = false
-  }
-}
-
-async function handleStopProxy() {
-  proxyBusy.value = true
-  try {
-    await stopDnsProxy()
-    await loadProxyStatus()
-    ElMessage.success(t('options.dns.stoppedMsg'))
-  } catch (e: any) {
-    ElMessage.error(t('options.dns.stopFailed', { msg: e }))
-  } finally {
-    proxyBusy.value = false
-  }
-}
-
-function handleDnsAutoStartChange(val: string | number | boolean) {
-  settingsStore.setDnsProxyAutoStart(Boolean(val))
-}
+// ---- 内置 DNS 服务器 ----
+// 该功能已从所有端彻底移除：桌面端直接改写系统 hosts；移动端由后端在「配置开关
+// 从关切换到开」时申请系统 VPN 授权并接管系统 DNS，界面上没有任何相关配置项。
 
 async function handleChangeDataDir() {
   try {
@@ -296,104 +221,6 @@ async function handleChangeDataDir() {
           </el-form-item>
         </el-form>
       </el-tab-pane>
-      <el-tab-pane :label="t('options.tab.dns')" name="dns">
-        <!-- 运行状态 + 启停 -->
-        <div class="dns-status-row">
-          <el-tag :type="proxyStatus?.running ? 'success' : 'info'" size="small">
-            {{ proxyStatus?.running ? t('options.dns.running') : t('options.dns.stopped') }}
-          </el-tag>
-          <el-button
-            size="small"
-            type="primary"
-            :loading="proxyBusy"
-            :disabled="!!proxyStatus?.running"
-            @click="handleStartProxy"
-          >
-            {{ t('options.dns.start') }}
-          </el-button>
-          <el-button
-            size="small"
-            :loading="proxyBusy"
-            :disabled="!proxyStatus?.running"
-            @click="handleStopProxy"
-          >
-            {{ t('options.dns.stop') }}
-          </el-button>
-          <el-button size="small" text @click="loadProxyStatus">
-            {{ t('options.dns.refresh') }}
-          </el-button>
-        </div>
-
-        <el-descriptions :column="1" border class="info-desc" style="max-width: 360px">
-          <el-descriptions-item :label="t('options.dns.listenAddr')">
-            {{ proxyStatus?.listen_addr ?? '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="t('options.dns.mappings')">
-            {{ proxyStatus?.mapping_count ?? 0 }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="t('options.dns.hitCount')">
-            {{ proxyStatus?.hit_count ?? 0 }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="t('options.dns.forwardCount')">
-            {{ proxyStatus?.forward_count ?? 0 }}
-          </el-descriptions-item>
-          <el-descriptions-item v-if="proxyStatus?.upstream?.length" :label="t('options.dns.upstreamList')">
-            {{ proxyStatus.upstream.join(', ') }}
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <!-- 参数设置 -->
-        <el-form label-position="top" style="max-width: 360px; margin-top: 16px">
-          <el-form-item :label="t('options.dns.port')">
-            <el-input-number
-              v-model="dnsPortInput"
-              :min="0"
-              :max="65535"
-              :controls="false"
-              style="width: 100%"
-            />
-            <div class="hint-text" style="margin: 0 4px">
-              {{ t('options.dns.portHint', { port: DNS_DEFAULT_PORT }) }}
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('options.dns.upstream')">
-            <el-input
-              v-model="dnsUpstreamInput"
-              :placeholder="t('options.dns.upstreamPlaceholder')"
-            />
-          </el-form-item>
-          <el-form-item :label="t('options.dns.autoStart')">
-            <el-switch
-              :model-value="settingsStore.dnsProxyAutoStart"
-              @change="handleDnsAutoStartChange"
-            />
-            <div class="hint-text" style="margin: 0 4px">
-              {{ t('options.dns.autoStartHint') }}
-            </div>
-          </el-form-item>
-        </el-form>
-
-        <div class="hint-text" style="max-width: 360px">
-          {{ t('options.dns.hint') }}
-        </div>
-        <div class="hint-text" style="max-width: 360px">
-          {{
-            t('options.dns.verifyHint', {
-              port: proxyStatus?.listen_addr?.split(':')[1] ?? DNS_DEFAULT_PORT
-            })
-          }}
-        </div>
-
-        <el-alert
-          v-if="isMobile"
-          :type="proxyStatus?.tunnel_active ? 'success' : 'warning'"
-          :closable="false"
-          :title="
-            proxyStatus?.tunnel_active ? t('options.dns.tunnelOk') : t('options.dns.tunnelPending')
-          "
-          style="max-width: 360px; margin-top: 8px"
-        />
-      </el-tab-pane>
       <el-tab-pane :label="t('options.tab.advanced')" name="advanced">
         <!-- 平台信息 -->
         <div class="section-title">{{ t('advanced.platformInfo') }}</div>
@@ -432,13 +259,6 @@ async function handleChangeDataDir() {
 </template>
 
 <style scoped>
-.dns-status-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
 .section-title {
   font-size: 14px;
   font-weight: 600;

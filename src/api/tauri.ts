@@ -7,7 +7,6 @@ import type {
   ImportSummary,
   PlatformInfo,
   Profile,
-  ProxyStatus,
 } from '../types/ipc'
 
 export const getProfiles = (): Promise<Profile[]> => invoke('get_profiles')
@@ -72,15 +71,21 @@ export const exportConfigToFile = (path: string, format: ExportFormat): Promise<
 export const importConfigFromFile = (path: string, format: ExportFormat): Promise<ImportSummary> =>
   invoke('import_config_from_file', { path, format })
 
-/** 启动 DNS 代理；port / upstream 传入后会持久化到设置 */
-export const startDnsProxy = (port?: number, upstream?: string): Promise<ProxyStatus> =>
-  invoke('start_dns_proxy', { port: port ?? null, upstream: upstream ?? null })
-
-export const stopDnsProxy = (): Promise<void> => invoke('stop_dns_proxy')
-
-export const getProxyStatus = (): Promise<ProxyStatus> => invoke('get_proxy_status')
+/** 移动端：确保 VPN 隧道已接管系统 DNS（回到前台时自愈，已授权则不会再弹窗） */
+export const ensureTunnel = (): Promise<boolean> => invoke('ensure_tunnel')
 
 export const getPlatformInfo = (): Promise<PlatformInfo> => invoke('get_platform_info')
+
+/**
+ * 诊断报告：本地 DNS 服务器状态 + 映射内容 + 本机自测 + 原生隧道日志
+ *
+ * 「域名打不开但直接访问 IP 正常」这类问题涉及四条链路（隧道 / 本地服务器 /
+ * 映射表 / 上游），所以后端一次性拼成一段可直接复制的文本，真机排查不必装 adb。
+ */
+export const getDiagnostics = (): Promise<string> => invoke('get_diagnostics')
+
+/** 清空诊断日志（目前只有原生隧道日志需要清） */
+export const clearDiagnostics = (): Promise<void> => invoke('clear_diagnostics')
 
 export const openHostsFolder = (): Promise<void> => invoke('open_hosts_folder')
 
@@ -117,9 +122,6 @@ export const saveAppSettings = (params: {
   proxyPort?: number
   remoteAutoRefresh?: boolean
   writeMode?: string
-  dnsProxyAutoStart?: boolean
-  dnsProxyPort?: number
-  dnsUpstream?: string
 }): Promise<void> =>
   invoke('save_app_settings', {
     language: params.language ?? null,
@@ -131,9 +133,6 @@ export const saveAppSettings = (params: {
     proxyPort: params.proxyPort ?? null,
     remoteAutoRefresh: params.remoteAutoRefresh ?? null,
     writeMode: params.writeMode ?? null,
-    dnsProxyAutoStart: params.dnsProxyAutoStart ?? null,
-    dnsProxyPort: params.dnsProxyPort ?? null,
-    dnsUpstream: params.dnsUpstream ?? null,
   })
 
 // 开机自启（桌面端；移动端恒为 false / 空操作）

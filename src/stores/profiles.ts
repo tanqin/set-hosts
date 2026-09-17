@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   applyProfile,
   createProfile,
@@ -17,11 +17,24 @@ import {
 import type { Profile } from '../types/ipc'
 import { ElMessage } from 'element-plus'
 import { t } from '../i18n'
+import { useSettingsStore } from './settings'
 
 export const useProfilesStore = defineStore('profiles', () => {
+  const settingsStore = useSettingsStore()
   const profiles = ref<Profile[]>([])
   const activeId = ref<string | null>(null)
   const loading = ref(false)
+
+  const isMobile = computed(() => settingsStore.platform?.is_mobile ?? false)
+
+  /**
+   * 正在等待系统 VPN 授权结果的 profile。
+   *
+   * 移动端「配置全部关闭 → 打开某个配置」时，后端会弹出系统 VPN 授权弹窗，
+   * 而授权结果是异步回传的；若用户点了拒绝，需要把刚打开的开关回滚（见
+   * [`handleVpnConsentResult`]），否则界面显示「已启用」但映射并未生效。
+   */
+  let pendingConsentId: string | null = null
 
   async function load() {
     loading.value = true
@@ -128,13 +141,48 @@ export const useProfilesStore = defineStore('profiles', () => {
     }
   }
 
+  /**
+   * 切换 profile 启用状态。
+   *
+   * 移动端没有 hosts 写入能力，映射靠「内置 DNS 服务器 + VPN 隧道」生效，因此
+   * 从「全部关闭」切到「打开」时会申请一次系统 VPN 授权：授权成功即永久记住，
+   * 之后不再打扰；被拒绝则回滚这次打开（[`handleVpnConsentResult`]）。
+   */
   async function toggle(id: string) {
+    const p = profiles.value.find((x) => x.id === id)
+    if (!p) return
+    const willEnable = !p.enabled
+    // 本次是否为「全部关闭 → 开启」：只有这种转换才需要重新申请 VPN 授权
+    const needsConsent =
+      willEnable && isMobile.value && !profiles.value.some((x) => x.id !== id && x.enabled)
+    // 授权结果异步回传，先记下来，避免回传早于本函数返回时找不到目标
+    if (needsConsent) pendingConsentId = id
     try {
       await toggleProfile(id)
-      const p = profiles.value.find((x) => x.id === id)
-      if (p) p.enabled = !p.enabled
+      p.enabled = willEnable
       // 用本地化文案替代后端返回的中文字符串，保证语言切换后提示一致
-      ElMessage.success(p?.enabled ? t('profiles.enabled') : t('profiles.disabled'))
+      ElMessage.success(willEnable ? t('profiles.enabled') : t('profiles.disabled'))
+    } catch (e: any) {
+      if (needsConsent) pendingConsentId = null
+      ElMessage.error(t('profiles.toggleFailed', { msg: e }))
+    }
+  }
+
+  /**
+   * 处理系统 VPN 授权结果（由 `vpn-consent` 事件驱动）。
+   *
+   * 拒绝时把刚打开的开关回滚：映射实际没生效，开关就不该停在「已启用」；
+   * 回滚后用户再次从关切到开，会重新弹出授权弹窗。
+   */
+  async function handleVpnConsentResult(granted: boolean) {
+    const id = pendingConsentId
+    pendingConsentId = null
+    if (granted || !id) return
+    const p = profiles.value.find((x) => x.id === id)
+    if (!p?.enabled) return
+    try {
+      await toggleProfile(id)
+      p.enabled = false
     } catch (e: any) {
       ElMessage.error(t('profiles.toggleFailed', { msg: e }))
     }
@@ -170,6 +218,7 @@ export const useProfilesStore = defineStore('profiles', () => {
     loadContent,
     saveContent,
     toggle,
+    handleVpnConsentResult,
     apply,
   }
 })

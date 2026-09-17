@@ -6,12 +6,17 @@ import { save, open } from '@tauri-apps/plugin-dialog'
 import { exportConfigToFile, importConfigFromFile } from '../../api/tauri'
 import type { ExportFormat } from '../../types/ipc'
 import { useProfilesStore } from '../../stores/profiles'
+import { useSettingsStore } from '../../stores/settings'
 import { t } from '../../i18n'
 
 defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ 'update:visible': [boolean] }>()
 
 const profilesStore = useProfilesStore()
+const settingsStore = useSettingsStore()
+
+// 移动端窄屏按 50% 宽度会把表单挤到无法操作，移动端铺满整屏，桌面端保持侧栏式抽屉
+const drawerSize = computed(() => (settingsStore.platform?.is_mobile ? '100%' : '50%'))
 
 const tab = ref<'import' | 'export'>('export')
 const exportFormat = ref<ExportFormat>('hosts')
@@ -79,7 +84,7 @@ async function handleImport() {
     :model-value="visible"
     :title="t('io.title')"
     direction="rtl"
-    size="50%"
+    :size="drawerSize"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-tabs v-model="tab">

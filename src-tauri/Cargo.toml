@@ -28,16 +28,30 @@ tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "macros",
 log = "0.4"
 encoding_rs = "0.8"
 dirs = "5"
-# 远程 hosts 拉取（支持 http/https/socks5 代理）
-reqwest = { version = "0.12", features = ["socks"] }
 
 # 本地 DNS 服务器（DNS 代理：移动端 hosts 映射生效 + 桌面端调试）
 hickory-proto = "0.25"
 
-# 桌面端专用插件（单实例 / 开机自启）
+# 桌面端：远程 hosts 拉取使用系统 TLS（schannel / Security.framework / OpenSSL）+ 桌面专用插件
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+reqwest = { version = "0.12", features = ["socks"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
+
+# 移动端：native-tls 在 Android/iOS 上依赖交叉编译的 OpenSSL，改用纯 Rust 的 rustls
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = [
+    "socks",
+    "rustls-tls",
+    "charset",
+    "http2",
+] }
+
+# Android：VpnService 隧道桥接需要直接调用 JNI（复用 tauri / wry 已依赖的 jni 0.21）
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+# 把 log crate 的输出接到 logcat，真机问题可 adb logcat 直接看到
+android_logger = "0.14"
 
 [profile.release]
 codegen-units = 1

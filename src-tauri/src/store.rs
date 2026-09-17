@@ -37,13 +37,17 @@ pub struct AppSettings {
     /// 写入系统 hosts 的模式：append（托管块追加，保留原有条目）/ overwrite（完全替换）
     #[serde(default = "default_write_mode")]
     pub write_mode: String,
-    /// DNS 代理：启动应用时自动运行
+    /// 内置 DNS 服务器是否随应用启动自动运行。
+    ///
+    /// 已废弃：该开关的配置界面已从所有端移除——移动端无条件启动（它是移动端让 hosts
+    /// 映射生效的唯一免 root 途径），桌面端无条件不启动。保留字段只为兼容旧版
+    /// settings.json，读写都不再影响行为。
     #[serde(default)]
     pub dns_proxy_auto_start: bool,
-    /// DNS 代理监听端口（0 = 使用默认端口）
+    /// 内置 DNS 服务器监听端口（0 = 使用默认端口）
     #[serde(default)]
     pub dns_proxy_port: u16,
-    /// DNS 代理上游 DNS 服务器（逗号分隔；空 = 自动探测系统 DNS）
+    /// 内置 DNS 服务器上游 DNS（逗号分隔；空 = 自动探测系统 DNS）
     #[serde(default)]
     pub dns_upstream: String,
 }

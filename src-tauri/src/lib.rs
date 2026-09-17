@@ -18,6 +18,8 @@ use commands::AppState;
 use tauri::Manager;
 
 /// 显示并聚焦主窗口（托盘 / 二次启动复用）
+/// 仅桌面端使用（移动端没有托盘与多实例，unminimize 等方法也不可用）
+#[cfg(desktop)]
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -104,6 +106,14 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     ensure_admin();
 
+    // Android: 把 log crate 接到 logcat，真机排查用 `adb logcat -s set-hosts`
+    #[cfg(target_os = "android")]
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Info)
+            .with_tag("set-hosts"),
+    );
+
     let builder = tauri::Builder::default();
 
     // 桌面端插件：单实例必须最先注册，二次启动时唤起已有窗口
@@ -169,13 +179,18 @@ pub fn run() {
                 commands::auto_start_dns_proxy(handle).await;
             });
 
+            // 移动端：把 AppHandle 交给原生桥接层，供 Kotlin 侧回传系统 VPN
+            // 授权结果时向前端广播 vpn-consent 事件（授权被拒绝需回滚配置开关）
+            #[cfg(target_os = "android")]
+            mobile::init_app_handle(app.handle().clone());
+
             Ok(())
         })
         // 桌面端：点关闭按钮隐藏到托盘，通过托盘菜单退出
-        .on_window_event(|window, event| {
+        .on_window_event(|_window, _event| {
             #[cfg(desktop)]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
+            if let tauri::WindowEvent::CloseRequested { api, .. } = _event {
+                let _ = _window.hide();
                 api.prevent_close();
             }
         })
@@ -208,8 +223,12 @@ pub fn run() {
             commands::start_dns_proxy,
             commands::stop_dns_proxy,
             commands::get_proxy_status,
+            commands::ensure_tunnel,
             // 平台信息
             commands::get_platform_info,
+            // 诊断日志
+            commands::get_diagnostics,
+            commands::clear_diagnostics,
             // 打开文件夹 & 数据目录
             commands::open_hosts_folder,
             commands::get_data_dir,
