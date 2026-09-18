@@ -114,10 +114,10 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        // 默认创建一个「默认」profile
+        // 首次启动时创建一个默认 profile（名称固定为英文 Default，与界面语言无关）
         let default_profile = Profile {
             id: uuid::Uuid::new_v4().to_string(),
-            name: "默认".to_string(),
+            name: "Default".to_string(),
             content: String::new(),
             enabled: false,
             created_at: chrono::Utc::now().to_rfc3339(),
