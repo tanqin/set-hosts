@@ -1037,6 +1037,8 @@ const menuGroups = computed(() => {
   height: 20px;
   margin-right: 2px;
   border-radius: 4px;
+  /* 图标为白色背景，加细描边避免在浅色标题栏上与背景融为一体 */
+  box-shadow: 0 0 0 1px var(--el-border-color-light, #e4e7ed);
   pointer-events: none;
   -webkit-user-drag: none;
 }
