@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import android.system.OsConstants
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.lang.ref.WeakReference
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -64,8 +65,25 @@ class DnsVpnService : VpnService() {
     @Volatile
     private var established = false
 
+    /** 当前运行中的 service 实例弱引用，用于在 stopService 不可靠时直接让它自停 */
+    private var instance: WeakReference<DnsVpnService>? = null
+
     /** 隧道是否已建立（Rust 侧通过 JNI 查询） */
     fun isRunning(): Boolean = established
+
+    /** 直接要求当前运行中的 service 实例停止自己。
+     *
+     * 某些系统对 `stopService` 的处理有延迟，甚至根本不销毁 Service，导致状态栏 VPN
+     * 图标一直挂着。通过持有实例引用直接 teardown + stopSelf，作为 stopService 的保险。
+     */
+    fun stopInstance() {
+      instance?.get()?.let { service ->
+        runCatching {
+          service.teardown()
+          service.stopSelf()
+        }
+      }
+    }
   }
 
   private var tun: ParcelFileDescriptor? = null
@@ -88,6 +106,11 @@ class DnsVpnService : VpnService() {
 
   /** 每个工作线程各自持有一个已连接到本地 DNS 服务器的 UDP socket */
   private val localForwarder = ThreadLocal<Forwarder>()
+
+  override fun onCreate() {
+    super.onCreate()
+    instance = WeakReference(this)
+  }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     DnsVpnDiagnostics.init(this)
@@ -113,6 +136,7 @@ class DnsVpnService : VpnService() {
   }
 
   override fun onDestroy() {
+    instance = null
     teardown()
     super.onDestroy()
   }

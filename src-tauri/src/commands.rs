@@ -419,13 +419,13 @@ pub fn export_config(
 }
 
 #[tauri::command]
-pub fn import_config(
+pub async fn import_config(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     content: String,
     format: ExportFormat,
 ) -> Result<ImportSummary, String> {
-    apply_import(app, state, content, format)
+    apply_import(app, state, content, format).await
 }
 
 /// 导出到指定文件
@@ -447,7 +447,7 @@ pub fn export_config_to_file(
 
 /// 从文件导入
 #[tauri::command]
-pub fn import_config_from_file(
+pub async fn import_config_from_file(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     path: String,
@@ -458,28 +458,75 @@ pub fn import_config_from_file(
     }
     let content =
         std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {}", e))?;
-    apply_import(app, state, content, format)
+    apply_import(app, state, content, format).await
 }
 
-fn apply_import(
+async fn apply_import(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     content: String,
     format: ExportFormat,
 ) -> Result<ImportSummary, String> {
     let (new_config, summary) = crate::import_export::import_config(&content, &format)?;
-    let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
-    *cfg = new_config;
-    crate::store::save_config(&app, &cfg)?;
-    drop(cfg);
+    {
+        let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
+        *cfg = new_config;
+        crate::store::save_config(&app, &cfg)?;
+    } // 锁在此处释放：MutexGuard 不是 Send，绝不能跨下面的 await
 
     // 导入会整体替换配置：同步 DNS 代理映射
     refresh_proxy_mappings(&state);
 
+    if crate::hosts_path::is_desktop() {
+        // 桌面端：导入是「整体替换配置」的操作，系统 hosts 必须跟着新配置走。
+        // - 导入的配置里有启用项：立刻把它们的映射写进系统 hosts。界面显示「已启用」
+        //   却没写进 hosts，只会让用户以为是自己用错了。
+        // - 一个启用项都没有：只清掉上一份配置留在 hosts 里的托管块，避免「界面没有
+        //   启用配置、hosts 里却还生效着旧映射」；hosts 里本来就没有托管块时不动它，
+        //   免得导入一份纯文本 hosts 也白弹一次提权框。
+        let enabled = has_enabled_profile(state.inner());
+        let stale_block = !enabled
+            && crate::privilege::read_hosts_content()
+                .map(|c| c.contains(crate::parser::MANAGED_START))
+                .unwrap_or(false);
+
+        if enabled || stale_block {
+            let merged = build_merged_hosts(&app, &state)?;
+            tauri::async_runtime::spawn_blocking(move || write_hosts(merged))
+                .await
+                .map_err(|e| format!("配置已导入，但写入系统 hosts 失败: {}", e))??;
+            if enabled {
+                mark_enabled_applied(&app, state.inner());
+            }
+        }
+        return Ok(summary);
+    }
+
     // 移动端：导入的配置可能一个都没启用，此时隧道必须收起
-    stop_tunnel_if_no_enabled_profile(&state);
+    collapse_mobile_tunnel(&app, state.inner()).await;
 
     Ok(summary)
+}
+
+/// 把「启用中的配置」的「上次应用时间」刷新为当前时刻
+///
+/// 桌面端写入系统 hosts 成功后调用：导入的配置可能带着别的机器上的旧时间戳，
+/// 而它此刻确实已经被应用了，界面不该再显示那份过期时间。
+fn mark_enabled_applied(app: &tauri::AppHandle, state: &AppState) {
+    let mut cfg = match state.config.lock() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            log::warn!("刷新「上次应用时间」失败: {}", e);
+            return;
+        }
+    };
+    let now = chrono::Utc::now().to_rfc3339();
+    for p in cfg.profiles.iter_mut() {
+        if p.enabled {
+            p.last_applied_at = Some(now.clone());
+        }
+    }
+    crate::store::save_config(app, &cfg).ok();
 }
 
 // ============ DNS 代理 ============
@@ -693,7 +740,8 @@ async fn collapse_mobile_tunnel(app: &tauri::AppHandle, state: &AppState) {
 
 /// 同步版收敛：没有任何启用配置时收起 VPN 隧道
 ///
-/// 供无法 await 的同步调用点（如导入）使用，语义与 [`collapse_mobile_tunnel`] 一致。
+/// 供 [`sync_mobile_tunnel`] 内部这类「已确定要收起、无需再 await 其它操作」的分支使用，
+/// 语义与 [`collapse_mobile_tunnel`] 一致。
 fn stop_tunnel_if_no_enabled_profile(state: &AppState) {
     if !crate::hosts_path::is_mobile() {
         return;
@@ -705,7 +753,7 @@ fn stop_tunnel_if_no_enabled_profile(state: &AppState) {
     // 属于系统级配置，进程重启后仍可能生效），此时 is_tunnel_active() 未必可信
     match crate::mobile::stop_tunnel() {
         Ok(()) => log::info!("已收起 VPN 隧道：当前没有任何启用的配置"),
-        Err(e) => log::debug!("收起 VPN 隧道失败（多半本就没在运行）: {}", e),
+        Err(e) => log::warn!("收起 VPN 隧道失败: {}", e),
     }
 }
 

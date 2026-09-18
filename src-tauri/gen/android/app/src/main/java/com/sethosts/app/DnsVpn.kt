@@ -94,6 +94,9 @@ object DnsVpn {
   fun stop(activity: Activity) {
     activity.runOnUiThread {
       runCatching { activity.stopService(Intent(activity, DnsVpnService::class.java)) }
+      // 保险：直接让当前运行中的 Service 实例 teardown + stopSelf。
+      // 某些系统对 stopService 的响应有延迟，只靠 stopService 会导致状态栏 VPN 图标残留。
+      runCatching { DnsVpnService.stopInstance() }
     }
   }
 

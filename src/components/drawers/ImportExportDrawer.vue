@@ -10,7 +10,7 @@ import { useSettingsStore } from '../../stores/settings'
 import { t } from '../../i18n'
 
 defineProps<{ visible: boolean }>()
-const emit = defineEmits<{ 'update:visible': [boolean] }>()
+const emit = defineEmits<{ 'update:visible': [boolean]; imported: [] }>()
 
 const profilesStore = useProfilesStore()
 const settingsStore = useSettingsStore()
@@ -47,14 +47,13 @@ async function handleExport() {
 }
 
 async function handleSelectFile() {
+  const hostsFilter = { name: t('io.hostsText'), extensions: ['txt', 'hosts'] }
+  const jsonFilter = { name: 'JSON', extensions: ['json'] }
   const path = await open({
     title: t('io.selectFile'),
     multiple: false,
     directory: false,
-    filters: [
-      { name: t('io.hostsText'), extensions: ['txt', 'hosts'] },
-      { name: 'JSON', extensions: ['json'] },
-    ],
+    filters: importFormat.value === 'json' ? [jsonFilter, hostsFilter] : [hostsFilter, jsonFilter],
   })
   if (typeof path === 'string') {
     selectedFile.value = path
@@ -69,11 +68,15 @@ async function handleImport() {
   try {
     const summary = await importConfigFromFile(selectedFile.value, importFormat.value)
     selectedFile.value = null
-    await profilesStore.load()
     ElMessage.success(t('io.imported', { profiles: summary.profile_count, entries: summary.entry_count }))
   } catch (e: any) {
     ElMessage.error(t('io.importFailed', { msg: e }))
   } finally {
+    // 配置已被整体替换，即使写系统 hosts 失败（提权被拒）也要重新拉取列表，
+    // 否则界面还停在导入前的配置上，用户会以为没导入成功
+    await profilesStore.load()
+    // 导入的配置里可能有启用项并已写进系统 hosts，底部只读区要跟着重新读取
+    emit('imported')
     importing.value = false
   }
 }

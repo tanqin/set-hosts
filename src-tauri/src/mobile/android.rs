@@ -144,10 +144,26 @@ pub fn stop_vpn() -> Result<(), String> {
     let mut env = vm
         .attach_current_thread()
         .map_err(|err| format!("挂载当前线程到 JVM 失败: {err}"))?;
-    env.call_method(activity, "stopDnsVpn", "()V", &[])
-        .map_err(|err| format!("调用原生 VPN 隧道停止失败: {err}"))?;
-    TUNNEL_ACTIVE.store(false, Ordering::Relaxed);
-    Ok(())
+
+    // stopDnsVpn 在 Activity 上通过 runOnUiThread 异步调用 stopService。
+    // 某些系统对 stopService 的处理有延迟，甚至一次没停下来，因此多轮询确认并
+    // 重试几次，避免「代码下发了停止但状态栏 VPN 图标还在」的观感问题。
+    for attempt in 1..=5 {
+        env.call_method(activity.clone(), "stopDnsVpn", "()V", &[])
+            .map_err(|err| format!("调用原生 VPN 隧道停止失败: {err}"))?;
+
+        // runOnUiThread 是异步的，给它足够的时间把 stopService + stopInstance 执行完
+        std::thread::sleep(std::time::Duration::from_millis(200));
+
+        if !is_vpn_active() {
+            log::info!("VPN 隧道已停止（第 {attempt} 次停止请求后确认）");
+            TUNNEL_ACTIVE.store(false, Ordering::Relaxed);
+            return Ok(());
+        }
+        log::warn!("第 {attempt} 次停止后 VPN 隧道仍在运行，继续重试");
+    }
+
+    Err("停止 VPN 隧道失败：多次请求后原生服务仍在运行".to_string())
 }
 
 /// 读取原生隧道诊断报告（Kotlin 侧 `DnsVpnDiagnostics` 的内存缓冲 + 落盘日志）

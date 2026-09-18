@@ -943,7 +943,7 @@ const menuGroups = computed(() => {
 
       <!-- 抽屉 -->
       <BackupDrawer v-model:visible="drawers.backup" @restored="loadSystemHosts" />
-      <ImportExportDrawer v-model:visible="drawers.importExport" />
+      <ImportExportDrawer v-model:visible="drawers.importExport" @imported="loadSystemHosts" />
       <OptionsDrawer v-model:visible="drawers.options" />
       <DiagnosticsDrawer v-model:visible="drawers.diagnostics" />
       <AboutDrawer v-model:visible="drawers.about" />
