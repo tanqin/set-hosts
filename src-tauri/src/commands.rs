@@ -140,6 +140,10 @@ pub async fn delete_profile(
             .map_err(|e| format!("应用失败: {}", e))??;
     }
 
+    // 移动端：被删的可能是最后一个启用的配置，此时隧道必须跟着收起，
+    // 否则系统会一直挂着 VPN，而映射早已随配置一起没了
+    collapse_mobile_tunnel(&app, &state).await;
+
     Ok(())
 }
 
@@ -471,6 +475,10 @@ fn apply_import(
 
     // 导入会整体替换配置：同步 DNS 代理映射
     refresh_proxy_mappings(&state);
+
+    // 移动端：导入的配置可能一个都没启用，此时隧道必须收起
+    stop_tunnel_if_no_enabled_profile(&state);
+
     Ok(summary)
 }
 
@@ -629,43 +637,76 @@ fn rollback_profile_enabled(app: &tauri::AppHandle, state: &AppState, profile_id
     refresh_proxy_mappings(state);
 }
 
-/// 移动端：按「配置开关」同步 VPN 隧道（桌面端空操作）
+/// 移动端：按「是否存在启用中的配置」同步 VPN 隧道（桌面端空操作）
 ///
-/// 移动端写不了系统 hosts，映射只能靠「内置 DNS 服务器 + VPN 隧道」生效，所以开关
-/// 打开时要申请系统 VPN 授权并接管系统 DNS（用户主动打开，即使拒绝过也会重新弹窗）；
-/// 关闭后若已无任何启用的配置，则收起隧道，免得系统一直挂着 VPN。
+/// 移动端写不了系统 hosts，映射只能靠「内置 DNS 服务器 + VPN 隧道」生效。隧道该不该开，
+/// **唯一事实来源**是「有没有配置处于启用状态」：
+/// - 至少一个配置启用 → 隧道必须接管系统 DNS，否则映射形同虚设；
+/// - 一个都没有 → 必须收起隧道，绝不让系统白挂着一个 VPN（耗电、状态栏常驻图标，
+///   还会让用户以为映射仍在生效）。
 ///
-/// 返回 `Err` 表示**这次开启并没有真正让映射生效**（本地 DNS 服务器起不来），
-/// 调用方必须据此回滚开关——否则界面显示「已启用」、实际什么都没发生。
+/// `allow_start` 决定本次是否允许**新建**隧道：
+/// - `true`：用户主动打开配置开关，可以弹系统授权框（即使之前拒绝过也重新申请）；
+///   失败时返回 `Err`，调用方必须据此回滚开关——否则界面显示「已启用」而映射没生效。
+/// - `false`：删除 / 导入 / 自愈等被动路径，只做「该收就收」的收敛，绝不主动开隧道，
+///   也永不返回 `Err`（这些操作本身与隧道无关，不该因为它们失败）。
 async fn sync_mobile_tunnel(
     app: &tauri::AppHandle,
     state: &AppState,
-    enabled: bool,
+    allow_start: bool,
 ) -> Result<(), String> {
     if !crate::hosts_path::is_mobile() {
         return Ok(());
     }
-    if enabled {
-        // 先把本地 DNS 服务器拉起来再接管：隧道一旦建立，整机 DNS 都交给它，
-        // 指向一个没人监听的端口等于让全机断域名解析
-        let Some(port) = ensure_local_dns_running(app, state).await else {
-            let reason = local_dns_failure_reason(state);
-            log::warn!("本地 DNS 服务器不可用，本次不接管系统 DNS: {}", reason);
-            return Err(format!("本地 DNS 服务器未能启动，映射无法生效：{reason}"));
-        };
-        log::info!("移动端：请求接管系统 DNS，隧道转发到 127.0.0.1:{}", port);
-        if let Err(e) = crate::mobile::start_tunnel(port) {
-            log::warn!("申请系统 VPN 授权失败: {}", e);
-            return Err(format!("申请系统 VPN 授权失败：{e}"));
-        }
+
+    // 关闭侧优先：没有任何启用的配置，隧道就必须收起
+    if !has_enabled_profile(state) {
+        stop_tunnel_if_no_enabled_profile(state);
         return Ok(());
     }
-    if !has_enabled_profile(state) {
-        if let Err(e) = crate::mobile::stop_tunnel() {
-            log::warn!("收起 VPN 隧道失败: {}", e);
-        }
+
+    if !allow_start {
+        return Ok(());
+    }
+
+    // 开启侧：先把本地 DNS 服务器拉起来再接管——隧道一旦建立整机 DNS 都交给它，
+    // 指向一个没人监听的端口等于让全机断域名解析
+    let Some(port) = ensure_local_dns_running(app, state).await else {
+        let reason = local_dns_failure_reason(state);
+        log::warn!("本地 DNS 服务器不可用，本次不接管系统 DNS: {}", reason);
+        return Err(format!("本地 DNS 服务器未能启动，映射无法生效：{reason}"));
+    };
+    log::info!("移动端：请求接管系统 DNS，隧道转发到 127.0.0.1:{}", port);
+    if let Err(e) = crate::mobile::start_tunnel(port) {
+        log::warn!("申请系统 VPN 授权失败: {}", e);
+        return Err(format!("申请系统 VPN 授权失败：{e}"));
     }
     Ok(())
+}
+
+/// 移动端：只做「该收就收」的隧道收敛（见 [`sync_mobile_tunnel`] 的 `allow_start=false`）
+async fn collapse_mobile_tunnel(app: &tauri::AppHandle, state: &AppState) {
+    if let Err(e) = sync_mobile_tunnel(app, state, false).await {
+        log::warn!("收敛 VPN 隧道失败: {}", e);
+    }
+}
+
+/// 同步版收敛：没有任何启用配置时收起 VPN 隧道
+///
+/// 供无法 await 的同步调用点（如导入）使用，语义与 [`collapse_mobile_tunnel`] 一致。
+fn stop_tunnel_if_no_enabled_profile(state: &AppState) {
+    if !crate::hosts_path::is_mobile() {
+        return;
+    }
+    if has_enabled_profile(state) {
+        return;
+    }
+    // 无条件下发停止指令：隧道可能是上一次运行留下的（iOS 的 NEDNSProxyManager
+    // 属于系统级配置，进程重启后仍可能生效），此时 is_tunnel_active() 未必可信
+    match crate::mobile::stop_tunnel() {
+        Ok(()) => log::info!("已收起 VPN 隧道：当前没有任何启用的配置"),
+        Err(e) => log::debug!("收起 VPN 隧道失败（多半本就没在运行）: {}", e),
+    }
 }
 
 /// 移动端自愈：确保 VPN 隧道已接管系统 DNS。
@@ -682,8 +723,10 @@ pub async fn ensure_tunnel(
     if !crate::hosts_path::is_mobile() {
         return Ok(false);
     }
-    // 没有任何启用的配置时不接管：用户可能刚把开关全部关掉
+    // 没有任何启用的配置：不接管，并且把可能还挂着的隧道一并收起
+    // （用户可能刚把开关全部关掉，或上一次运行遗留了系统级隧道配置）
     if !has_enabled_profile(state.inner()) {
+        collapse_mobile_tunnel(&app, state.inner()).await;
         return Ok(false);
     }
 
@@ -739,6 +782,14 @@ pub async fn auto_start_dns_proxy(app: tauri::AppHandle) {
     let mapping_count = refresh_proxy_mappings(&state);
     // 没有任何启用的配置时不去接管系统 DNS（用户可能把开关都关掉了）
     let should_take_over = has_enabled_profile(state.inner());
+
+    // 不需要接管时先把可能残留的隧道收起来：iOS 的 NEDNSProxyManager 属于系统级
+    // 配置，上一次运行留下的话进程重启后仍在生效，会让整机 DNS 指向一个没人监听的
+    // 端口——表现就是「所有域名都解析不了，直接访问 IP 却正常」。
+    // 放在这里而不是末尾，是为了让 upstreams 为空等提前返回的路径也能收敛。
+    if !should_take_over {
+        collapse_mobile_tunnel(&app, state.inner()).await;
+    }
 
     let port = if settings.dns_proxy_port == 0 {
         dns_proxy::DEFAULT_PORT
