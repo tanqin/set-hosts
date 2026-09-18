@@ -84,6 +84,17 @@ export const ensureTunnel = (): Promise<boolean> => invoke('ensure_tunnel')
 /** 移动端「再按一次退出」确认后退出应用（Android 会先停 VPN 隧道再终止进程） */
 export const exitApp = (): Promise<void> => invoke('exit_app')
 
+/**
+ * Android 专用：用系统默认浏览器打开外链（ACTION_VIEW Intent）。
+ *
+ * 不能依赖 `@tauri-apps/plugin-shell` 的 `open` 或 `window.open`：
+ * 前者在某些机型上可能静默失败，后者会让 WebView 自己加载外链——一旦跳走，
+ * 应用自定义的返回手势（`window.__onAndroidBack`）会被冲掉，用户只能杀进程。
+ * 桌面端 / iOS 继续使用 `@tauri-apps/plugin-shell` 的 `open`，本命令仅 Android 走原生。
+ */
+export const openExternalUrl = (url: string): Promise<void> =>
+  invoke('open_external_url', { url })
+
 export const getPlatformInfo = (): Promise<PlatformInfo> => invoke('get_platform_info')
 
 /**
@@ -118,6 +129,8 @@ export interface AppSettingsPayload {
   dns_proxy_auto_start: boolean
   dns_proxy_port: number
   dns_upstream: string
+  system_hosts_panel_collapsed: boolean
+  system_hosts_panel_height: number
 }
 
 export const getAppSettings = (): Promise<AppSettingsPayload> => invoke('get_app_settings')
@@ -132,6 +145,8 @@ export const saveAppSettings = (params: {
   proxyPort?: number
   remoteAutoRefresh?: boolean
   writeMode?: string
+  systemHostsPanelCollapsed?: boolean
+  systemHostsPanelHeight?: number
 }): Promise<void> =>
   invoke('save_app_settings', {
     language: params.language ?? null,
@@ -143,6 +158,8 @@ export const saveAppSettings = (params: {
     proxyPort: params.proxyPort ?? null,
     remoteAutoRefresh: params.remoteAutoRefresh ?? null,
     writeMode: params.writeMode ?? null,
+    systemHostsPanelCollapsed: params.systemHostsPanelCollapsed ?? null,
+    systemHostsPanelHeight: params.systemHostsPanelHeight ?? null,
   })
 
 // 开机自启（桌面端；移动端恒为 false / 空操作）

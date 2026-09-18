@@ -153,6 +153,7 @@ export default {
   'about.techstack': '技术栈',
   'about.platforms': '支持平台',
   'about.github': 'GitHub',
+  'about.openUrlFailed': '打开链接失败: {msg}',
   'about.desktop': '桌面端：直接修改系统 hosts 文件',
   'about.mobile':
     '移动端：无法修改系统 hosts，首次开启配置时申请一次系统 VPN 授权，之后自动生效，无需 root/越狱',

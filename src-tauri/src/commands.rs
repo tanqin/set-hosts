@@ -1233,6 +1233,8 @@ pub fn save_app_settings(
     dns_proxy_auto_start: Option<bool>,
     dns_proxy_port: Option<u16>,
     dns_upstream: Option<String>,
+    system_hosts_panel_collapsed: Option<bool>,
+    system_hosts_panel_height: Option<u32>,
 ) -> Result<(), String> {
     let mut settings = crate::store::load_settings_public(&app);
     if let Some(lang) = language {
@@ -1276,6 +1278,12 @@ pub fn save_app_settings(
     }
     if let Some(v) = dns_upstream {
         settings.dns_upstream = v.trim().to_string();
+    }
+    if let Some(v) = system_hosts_panel_collapsed {
+        settings.system_hosts_panel_collapsed = v;
+    }
+    if let Some(v) = system_hosts_panel_height {
+        settings.system_hosts_panel_height = v;
     }
     crate::store::save_settings_public(&app, &settings)
 }
@@ -1640,5 +1648,35 @@ pub fn exit_app(app: tauri::AppHandle) {
     #[cfg(not(target_os = "android"))]
     {
         app.exit(0);
+    }
+}
+
+/// 用系统默认浏览器打开外链。
+///
+/// Android：通过 JNI 调用 `MainActivity.openExternalUrl`（ACTION_VIEW Intent）。
+/// 不能依赖 `@tauri-apps/plugin-shell` 的 `open` 或前端 `window.open`：
+/// 前者在该机型上可能静默失败，后者会让 WebView 自己加载外链——一旦跳走，
+/// 应用自定义的返回手势（`window.__onAndroidBack`）会被冲掉，用户只能杀进程。
+/// 桌面端继续使用前端 `@tauri-apps/plugin-shell` 的 `open`，本命令仅 Android 走原生。
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return Err("URL 不能为空".to_string());
+    }
+    // 只允许 http/https，避免被注入 file:// 或 intent:// 等危险协议
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("仅支持 http/https 协议".to_string());
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        crate::mobile::android::open_external_url(url)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        // 桌面端 / iOS 不应走到这里：前端会直接使用 @tauri-apps/plugin-shell
+        let _ = url;
+        Err("当前平台请使用 @tauri-apps/plugin-shell 打开外链".to_string())
     }
 }

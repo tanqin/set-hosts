@@ -153,6 +153,7 @@ export default {
   'about.techstack': '기술 스택',
   'about.platforms': '지원 플랫폼',
   'about.github': 'GitHub',
+  'about.openUrlFailed': '링크 열기 실패: {msg}',
   'about.desktop': '데스크톱: 시스템 hosts 파일을 직접 수정',
   'about.mobile':
     '모바일: 시스템 hosts 파일을 수정할 수 없으므로, 프로파일을 활성화할 때 시스템 VPN 권한을 한 번 요청하고 이후 자동으로 적용됩니다 — root/탈옥 불필요',

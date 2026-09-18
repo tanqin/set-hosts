@@ -153,6 +153,7 @@ export default {
   'about.techstack': 'Stack technique',
   'about.platforms': 'Plateformes',
   'about.github': 'GitHub',
+  'about.openUrlFailed': 'Échec d\'ouverture du lien : {msg}',
   'about.desktop': 'Bureau : modifie directement le fichier Hosts système',
   'about.mobile':
     'Mobile : le fichier Hosts système n\'est pas modifiable ; lors de l\'activation d\'un profil, l\'autorisation VPN système est demandée une seule fois, puis appliquée automatiquement — aucun root/jailbreak requis',

@@ -1,6 +1,8 @@
 package com.sethosts.app
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebView
@@ -103,6 +105,32 @@ class MainActivity : TauriActivity() {
       runCatching { stopService(Intent(this, DnsVpnService::class.java)) }
       finish()
       android.os.Process.killProcess(android.os.Process.myPid())
+    }
+  }
+
+  /**
+   * 用系统默认浏览器打开外链（由 Rust 通过 JNI 调用，见
+   * `src-tauri/src/mobile/android.rs`）。
+   *
+   * 不能直接在 WebView 里加载外链：Tauri 自定义了返回手势（[handleBackNavigation]
+   * 为 false，回调转发给前端 `window.__onAndroidBack`），一旦 WebView 跳到外站，
+   * 前端脚本连同 `__onAndroidBack` 都被冲掉，返回手势将完全失灵，用户只能杀进程。
+   * 这里走 ACTION_VIEW 让系统浏览器接管，[Intent.FLAG_ACTIVITY_NEW_TASK] 保证
+   * 浏览器在自己的任务栈里打开，不会污染本应用的任务。
+   */
+  @Suppress("unused")
+  fun openExternalUrl(url: String): Boolean {
+    return try {
+      val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      startActivity(intent)
+      true
+    } catch (e: ActivityNotFoundException) {
+      Logger.error("未找到可打开 $url 的应用: ${e.message}")
+      false
+    } catch (e: Exception) {
+      Logger.error("打开外链 $url 失败: ${e.message}")
+      false
     }
   }
 

@@ -251,6 +251,8 @@ pub fn run() {
             commands::set_autostart,
             // 退出应用（移动端「再按一次退出」）
             commands::exit_app,
+            // 打开外链（Android 走原生 ACTION_VIEW，避免 WebView 跳走后无法返回）
+            commands::open_external_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Set Hosts application");

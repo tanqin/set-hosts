@@ -153,6 +153,7 @@ export default {
   'about.techstack': 'Technologien',
   'about.platforms': 'Plattformen',
   'about.github': 'GitHub',
+  'about.openUrlFailed': 'Link konnte nicht geöffnet werden: {msg}',
   'about.desktop': 'Desktop: Bearbeitet die System-Hosts-Datei direkt',
   'about.mobile':
     'Mobil: Die System-Hosts-Datei ist nicht beschreibbar, daher wird beim Aktivieren eines Profils einmalig die System-VPN-Berechtigung angefordert — danach wird automatisch angewendet, kein Root/Jailbreak erforderlich',

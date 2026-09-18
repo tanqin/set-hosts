@@ -153,6 +153,7 @@ export default {
   'about.techstack': '技術堆疊',
   'about.platforms': '支援平台',
   'about.github': 'GitHub',
+  'about.openUrlFailed': '開啟連結失敗: {msg}',
   'about.desktop': '桌面端：直接修改系統 hosts 檔案',
   'about.mobile':
     '行動端：無法修改系統 hosts，首次啟用設定檔時申請一次系統 VPN 授權，之後自動生效，無需 root/越獄',

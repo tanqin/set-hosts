@@ -154,6 +154,7 @@ export default {
   'about.techstack': 'Tech stack',
   'about.platforms': 'Platforms',
   'about.github': 'GitHub',
+  'about.openUrlFailed': 'Failed to open link: {msg}',
   'about.desktop': 'Desktop: edits the system hosts file directly',
   'about.mobile':
     'Mobile: the system hosts file is not writable, so enabling a profile asks for the system VPN permission once and then applies automatically — no root/jailbreak required',

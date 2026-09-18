@@ -49,7 +49,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 // 系统 Hosts（只读展示，带语法高亮 + 托管块区分）
 const systemHosts = ref('')
 const systemHostsLoading = ref(false)
-const systemHostsCollapsed = ref(false)
+// 启动时优先应用持久化的展开/收起状态（settings 在 main.ts 挂载前已加载）
+const systemHostsCollapsed = ref(settingsStore.systemHostsPanelCollapsed)
 
 // ---- 系统 Hosts 区域高度：可拖拽调整，整个面板最大不超过应用高度的 50% ----
 const SYSTEM_HOSTS_DEFAULT_HEIGHT = 160
@@ -58,7 +59,12 @@ const SYSTEM_HOSTS_HEADER_HEIGHT = 30
 const SYSTEM_HOSTS_RESIZER_HEIGHT = 4
 
 const appHeight = ref(window.innerHeight)
-const systemHostsHeight = ref(SYSTEM_HOSTS_DEFAULT_HEIGHT)
+// 启动时优先应用持久化的高度（0 表示未设置过，回落到默认高度）
+const systemHostsHeight = ref(
+  settingsStore.systemHostsPanelHeight > 0
+    ? settingsStore.systemHostsPanelHeight
+    : SYSTEM_HOSTS_DEFAULT_HEIGHT,
+)
 const systemHostsDragging = ref(false)
 
 /** 内容区最大高度 = 应用高度的 50% - 面板头部与拖拽条 */
@@ -90,6 +96,8 @@ function onSystemHostsResizeStart(e: PointerEvent) {
   }
   const onEnd = () => {
     systemHostsDragging.value = false
+    // 拖拽结束才持久化，避免 pointermove 高频写盘
+    settingsStore.setSystemHostsPanelHeight(systemHostsHeight.value)
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onEnd)
     window.removeEventListener('pointercancel', onEnd)
@@ -179,6 +187,12 @@ async function loadSystemHosts() {
   } finally {
     systemHostsLoading.value = false
   }
+}
+
+/** 切换系统 Hosts 只读面板展开/收起：立即持久化，下次启动优先应用 */
+function toggleSystemHostsCollapsed() {
+  systemHostsCollapsed.value = !systemHostsCollapsed.value
+  settingsStore.setSystemHostsPanelCollapsed(systemHostsCollapsed.value)
 }
 
 // 抽屉显隐
@@ -913,7 +927,7 @@ const menuGroups = computed(() => {
           @pointerdown="onSystemHostsResizeStart"
         ></div>
         <div class="panel-header">
-          <div class="panel-title" @click="systemHostsCollapsed = !systemHostsCollapsed">
+          <div class="panel-title" @click="toggleSystemHostsCollapsed">
             <el-icon><component :is="systemHostsCollapsed ? ArrowRight : ArrowDown" /></el-icon>
             <span>{{ t('app.systemHosts') }}</span>
             <el-tag size="small" type="info" effect="plain">{{ t('app.readonly') }}</el-tag>

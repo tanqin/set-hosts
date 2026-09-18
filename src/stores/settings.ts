@@ -36,6 +36,10 @@ export const useSettingsStore = defineStore('settings', () => {
   // 写入系统 hosts 的模式：追加（托管块）/ 覆盖（完全替换）
   const writeMode = ref<WriteMode>('append')
 
+  // 桌面端：系统 Hosts 只读面板的展开/收起状态与高度（持久化，启动时优先应用）
+  const systemHostsPanelCollapsed = ref(false)
+  const systemHostsPanelHeight = ref(0)
+
   // 注：内置 DNS 服务器的端口 / 上游 / 自动运行已取消全部配置入口，
   // 桌面端不使用它，移动端由后端随应用启动固定开启，前端无需再保存这些设置。
 
@@ -62,6 +66,8 @@ export const useSettingsStore = defineStore('settings', () => {
       proxyPort.value = s.proxy_port
       remoteAutoRefresh.value = s.remote_auto_refresh
       writeMode.value = s.write_mode === 'overwrite' ? 'overwrite' : 'append'
+      systemHostsPanelCollapsed.value = s.system_hosts_panel_collapsed
+      systemHostsPanelHeight.value = s.system_hosts_panel_height
     } catch {
       // 非 Tauri 环境（纯浏览器调试）使用默认值
     }
@@ -164,6 +170,26 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  /** 切换系统 Hosts 只读面板展开/收起：立即持久化，静默生效 */
+  async function setSystemHostsPanelCollapsed(v: boolean) {
+    systemHostsPanelCollapsed.value = v
+    try {
+      await saveAppSettings({ systemHostsPanelCollapsed: v })
+    } catch {
+      // 静默：仅 UI 偏好，失败不提示
+    }
+  }
+
+  /** 保存系统 Hosts 只读面板内容区高度（拖拽结束时调用）：立即持久化，静默生效 */
+  async function setSystemHostsPanelHeight(v: number) {
+    systemHostsPanelHeight.value = v
+    try {
+      await saveAppSettings({ systemHostsPanelHeight: v })
+    } catch {
+      // 静默：仅 UI 偏好，失败不提示
+    }
+  }
+
   async function exportData(format: ExportFormat): Promise<string> {
     return exportConfig(format)
   }
@@ -195,6 +221,8 @@ export const useSettingsStore = defineStore('settings', () => {
     proxyPort,
     remoteAutoRefresh,
     writeMode,
+    systemHostsPanelCollapsed,
+    systemHostsPanelHeight,
     loadPlatform,
     loadAppSettings,
     setLanguage,
@@ -205,6 +233,8 @@ export const useSettingsStore = defineStore('settings', () => {
     saveProxySettings,
     setRemoteAutoRefresh,
     setWriteMode,
+    setSystemHostsPanelCollapsed,
+    setSystemHostsPanelHeight,
     exportData,
     importData,
     readCurrentHosts,

@@ -50,6 +50,12 @@ pub struct AppSettings {
     /// 内置 DNS 服务器上游 DNS（逗号分隔；空 = 自动探测系统 DNS）
     #[serde(default)]
     pub dns_upstream: String,
+    /// 系统 Hosts 只读面板是否折叠（桌面端；移动端无该面板）
+    #[serde(default)]
+    pub system_hosts_panel_collapsed: bool,
+    /// 系统 Hosts 只读面板内容区高度（桌面端；0 = 使用默认高度）
+    #[serde(default)]
+    pub system_hosts_panel_height: u32,
 }
 
 fn default_lang() -> String {

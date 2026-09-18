@@ -235,3 +235,40 @@ pub fn exit_app() -> Result<(), String> {
         .map_err(|err| format!("调用原生退出失败: {err}"))?;
     Ok(())
 }
+
+/// 用系统默认浏览器打开外链（Kotlin 侧 `MainActivity.openExternalUrl(String)`）。
+///
+/// 不能让 WebView 自己加载外链：应用自定义了返回手势（`handleBackNavigation = false`，
+/// 转发给前端 `window.__onAndroidBack`），WebView 一旦跳到外站，前端脚本连同
+/// `__onAndroidBack` 都被冲掉，返回手势将完全失灵，用户只能杀进程。
+/// 这里通过 ACTION_VIEW 让系统浏览器接管，链接在自己的任务栈里打开。
+pub fn open_external_url(url: &str) -> Result<(), String> {
+    use jni::objects::JValue;
+
+    let (vm, activity) = bridge()?;
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|err| format!("挂载当前线程到 JVM 失败: {err}"))?;
+
+    // 把 Rust &str 转成 Java String，再以 JObject 引用形式传给 Kotlin
+    let jstr = env
+        .new_string(url)
+        .map_err(|err| format!("创建 URL 字符串失败: {err}"))?;
+
+    let success = env
+        .call_method(
+            activity,
+            "openExternalUrl",
+            "(Ljava/lang/String;)Z",
+            &[JValue::Object(&*jstr)],
+        )
+        .map_err(|err| format!("调用原生打开外链失败: {err}"))?
+        .z()
+        .map_err(|err| format!("解析原生打开外链返回类型失败: {err}"))?;
+
+    if success {
+        Ok(())
+    } else {
+        Err("未找到可打开此链接的应用".to_string())
+    }
+}
