@@ -645,13 +645,9 @@ function handleMenuClick(key: keyof typeof drawers.value | 'exit') {
     handleExit()
     return
   }
-  // 桌面端：点击菜单项时关闭设置菜单，仅展示子抽屉（保持原行为）
-  // 移动端：设置菜单保持显示，el-drawer 默认 append-to-body 且 z-index 远高于
-  //        设置菜单（z-index: 10），子抽屉会自然覆盖显示在其上层。
-  //        这样子抽屉关闭时设置菜单始终保持在背后可见，不会出现"先关再开"的侧边闪现。
-  if (!isMobile.value) {
-    settingsMenuVisible.value = false
-  }
+  // 桌面端与移动端统一：设置菜单保持显示，子抽屉（el-drawer）的遮罩层由
+  // Element Plus z-index 管理器分配 2000+ 的层级，远高于设置菜单（z-index: 10），
+  // 子抽屉会自然覆盖显示在其上层。关闭子抽屉即回到设置菜单，实现「返回上一层」效果。
   // 重置所有，再打开目标（同一时间只允许一个子抽屉显示）
   Object.keys(drawers.value).forEach((k) => {
     drawers.value[k as keyof typeof drawers.value] = false
