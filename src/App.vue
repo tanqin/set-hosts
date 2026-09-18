@@ -16,6 +16,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { Profile } from './types/ipc'
 import { useProfilesStore } from './stores/profiles'
 import { useSettingsStore } from './stores/settings'
@@ -297,6 +298,7 @@ onMounted(async () => {
   document.addEventListener('visibilitychange', onDocumentVisibilityChange)
   setupRemoteRefreshListener()
   setupVpnConsentListener()
+  setupWindowControls()
   await settingsStore.loadPlatform()
   await profilesStore.load()
   loadSystemHosts()
@@ -312,7 +314,53 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onDocumentVisibilityChange)
   unlistenRemoteRefreshed?.()
   unlistenVpnConsent?.()
+  unlistenResized?.()
 })
+
+/**
+ * 桌面端自定义窗口控制：原生标题栏已移除（decorations: false），
+ * 最小化 / 最大化 / 关闭由顶部栏右侧的按钮实现。
+ *
+ * 关闭走 appWindow.close()：后端 on_window_event 会拦截并隐藏到托盘，
+ * 与原生标题栏时代的行为一致。
+ */
+const appWindow = getCurrentWindow()
+const isMaximized = ref(false)
+let unlistenResized: (() => void) | null = null
+
+function setupWindowControls() {
+  if (isMobile.value) return
+  void syncMaximized()
+  appWindow
+    .onResized(() => {
+      // 拖拽调整大小的过程中会连续触发，isMaximized 本身很轻量，无需节流
+      void syncMaximized()
+    })
+    .then((unlisten) => {
+      unlistenResized = unlisten
+    })
+}
+
+async function syncMaximized() {
+  try {
+    isMaximized.value = await appWindow.isMaximized()
+  } catch {
+    // 移动端 / 早期窗口未就绪时忽略
+  }
+}
+
+function minimizeWindow() {
+  void appWindow.minimize()
+}
+
+function toggleMaximizeWindow() {
+  void appWindow.toggleMaximize()
+}
+
+function closeWindow() {
+  // 桌面端后端会拦截 close 并隐藏到托盘；移动端不走这里
+  void appWindow.close()
+}
 
 /**
  * 移动端自愈：重新回到前台时确保隧道仍接管着系统 DNS。
@@ -628,9 +676,9 @@ const menuGroups = computed(() => {
       @keydown="onKeydown"
       tabindex="0"
     >
-      <!-- 顶部栏 -->
-      <div class="titlebar">
-        <div class="titlebar-left">
+      <!-- 顶部栏（桌面端兼作窗口拖拽区与控制按钮区，原生标题栏已移除） -->
+      <div class="titlebar" data-tauri-drag-region>
+        <div class="titlebar-left" data-tauri-drag-region>
           <el-dropdown trigger="click" @command="handleAddCommand">
             <el-button text size="small" :icon="Plus" />
             <template #dropdown>
@@ -640,15 +688,49 @@ const menuGroups = computed(() => {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <span class="app-title">Set Hosts</span>
+          <img class="app-logo" src="/app-icon.png" alt="Set Hosts" draggable="false" />
+          <span class="app-title" data-tauri-drag-region>Set Hosts</span>
         </div>
-        <div class="titlebar-right">
+        <div class="titlebar-right" data-tauri-drag-region>
           <el-button
             text
             size="small"
             :icon="Setting"
             @click="settingsMenuVisible = !settingsMenuVisible"
           />
+          <!-- 桌面端窗口控制：最小化 / 最大化 / 关闭（关闭 = 隐藏到托盘） -->
+          <div v-if="!isMobile" class="window-controls">
+            <button type="button" class="win-btn" aria-label="Minimize" @click="minimizeWindow">
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M0 5h10" stroke="currentColor" stroke-width="1" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="win-btn"
+              aria-label="Maximize"
+              @click="toggleMaximizeWindow"
+            >
+              <svg
+                v-if="!isMaximized"
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                aria-hidden="true"
+              >
+                <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" />
+              </svg>
+              <svg v-else width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" />
+                <path d="M2.5 2.5v-2h7v7h-2" fill="none" stroke="currentColor" />
+              </svg>
+            </button>
+            <button type="button" class="win-btn win-close" aria-label="Close" @click="closeWindow">
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M0 0l10 10M10 0L0 10" stroke="currentColor" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -947,6 +1029,53 @@ const menuGroups = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* 应用 logo：原生标题栏移除后，在自定义标题栏展示 */
+.app-logo {
+  width: 20px;
+  height: 20px;
+  margin-right: 2px;
+  border-radius: 4px;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* 桌面端窗口控制按钮（Windows 风格：通栏、悬停变色、关闭悬停红色） */
+.window-controls {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  margin-left: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.win-btn {
+  width: 44px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--el-text-color-primary);
+  cursor: default;
+  outline: none;
+  -webkit-app-region: no-drag;
+}
+
+.win-btn:hover {
+  background: var(--el-fill-color);
+}
+
+.win-btn:active {
+  background: var(--el-fill-color-dark);
+}
+
+.win-close:hover {
+  background: #e81123;
+  color: #fff;
 }
 
 /* 桌面端标题栏「+」「设置」图标略大一点，便于识别与点击 */
