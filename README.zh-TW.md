@@ -45,6 +45,12 @@
 - **Hosts 文字**：匯出目前設定檔的原始 hosts 文字，或把 hosts 文字匯入為新設定檔
 - 支援匯出到檔案、從檔案匯入
 
+### 診斷
+
+- 一鍵產生診斷報告，涵蓋本機 DNS 伺服器（執行狀態、監聽連接埠、管理網域數、上次啟動失敗原因、上游 DNS、查詢統計）、目前對應表、對 `127.0.0.1` 的即時自測查詢，以及原生 VPN 隧道報告
+- 隧道轉發連接埠與監聽連接埠一致性檢查——這是行動端「所有應用程式都上不了網、直接存取 IP 卻正常」的頭號原因
+- 支援一鍵複製全部報告、清空日誌；報告依需求產生（無過期狀態）
+
 ### 應用程式設定
 
 - **介面語言**：简体中文、繁體中文、English、日本語、한국어、Deutsch、Français、Español、Português (Brasil) —— 共 9 種，切換立即生效
@@ -53,6 +59,7 @@
 - 寫入模式、遠端 hosts 拉取代理、啟動時自動重新整理遠端 hosts
 - 平臺資訊檢視：作業系統、桌面 / 行動端、hosts 路徑（可一鍵開啟所在資料夾）
 - 自訂資料儲存目錄（可遷移）
+- 系統 Hosts 唯讀面板（桌面端）：摺疊/展開狀態與拖曳高度會持久化，啟動時自動恢復
 
 ## 技術棧
 
@@ -91,6 +98,7 @@ npm run build:all
 |---|---|
 | `npm run build:check` | 體檢打包環境（JDK / Android SDK / NDK / rustup target），不建置 |
 | `npm run build:desktop` | 目前系統桌面安裝包（Windows `.exe` / `.msi`、macOS `.dmg`、Linux `.deb` / `.rpm` / `.AppImage`） |
+| `npm run build:desktop:debug` | 桌面端除錯包（免簽章、可除錯、無程式碼優化） |
 | `npm run build:windows` / `build:macos` / `build:linux` | 明確指定系統；與本機不符時直接報錯 |
 | `npm run build:android` | Android APK（預設 arm64） |
 | `npm run build:android:all` | 把全部 ABI 打進一個通用包 |
@@ -160,7 +168,8 @@ dist-apk/       Android 產物
 
 ## 注意事項
 
-- Windows 首次寫入系統 hosts 會彈出 UAC 提權確認，屬正常現象
+- Windows 下應用程式啟動時會自動提權為管理員（啟動時彈出 UAC），以便寫入系統 hosts，屬正常現象
+- 桌面端關閉主視窗會隱藏到系統匣而非結束——請透過匣選單（顯示 / 結束）或設定 → 結束徹底關閉；再次啟動應用程式會喚起已有視窗（單一執行個體）
 - 覆蓋模式會移除系統原有 hosts 項目（含 `localhost`），如需保留請寫入設定檔中；誤操作可從「備份與還原」恢復
 - 遠端 hosts 單次內容上限 8MB、拉取逾時 15 秒；內容應為標準 hosts 格式純文字（每行 `IP 網域`），不支援 JSON
 - Android 首次開啟設定檔需授予 VPN 授權；拒絕後開關會自動回滾，再次開啟會重新申請

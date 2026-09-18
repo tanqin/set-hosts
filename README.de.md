@@ -45,6 +45,12 @@ Der Desktop schreibt die System-hosts-Datei direkt; mobil ist das nicht möglich
 - **Hosts-Text**: den rohen hosts-Text des aktuellen Profils exportieren oder hosts-Text als neues Profil importieren
 - Export in Datei / Import aus Datei
 
+### Diagnose
+
+- Ein-Klick-Diagnosebericht, der den lokalen DNS-Server (Status, Listenport, Anzahl verwalteter Domänen, Grund des letzten Startfehlers, Upstream-DNS, Abfragestatistik), die aktuellen Mappings, eine Live-Selbstprüfung gegen `127.0.0.1` und den nativen VPN-Tunnelbericht umfasst
+- Konsistenzprüfung zwischen Tunnel-Weiterleitungsport und Listenport — die häufigste Ursache für „alle Apps verlieren DNS, IP-Zugriff funktioniert aber“ auf Mobilgeräten
+- Bericht komplett kopieren und Protokoll löschen; der Bericht wird bei Bedarf erzeugt (kein veralteter Zustand)
+
 ### Anwendungseinstellungen
 
 - **Oberflächensprache**: 简体中文、繁體中文、English、日本語、한국어、Deutsch、Français、Español、Português (Brasil) — 9 Sprachen, Umschalten wirkt sofort
@@ -53,6 +59,7 @@ Der Desktop schreibt die System-hosts-Datei direkt; mobil ist das nicht möglich
 - Schreibmodus, Proxy für den Remote-Abruf, automatische Aktualisierung beim Start
 - Plattforminformationen: Betriebssystem, Desktop / Mobil, hosts-Pfad (Ordner mit einem Klick öffnen)
 - Eigenes Datenverzeichnis (verschiebbar)
+- Schreibgeschütztes System-hosts-Panel (Desktop): eingeklappter/ausgeklappter Zustand und gezogene Höhe werden gespeichert und beim Start wiederhergestellt
 
 ## Technik
 
@@ -91,6 +98,7 @@ npm run build:all
 |---|---|
 | `npm run build:check` | Build-Umgebung prüfen (JDK / Android SDK / NDK / rustup target), ohne zu bauen |
 | `npm run build:desktop` | Desktop-Installer für das aktuelle System (Windows `.exe` / `.msi`, macOS `.dmg`, Linux `.deb` / `.rpm` / `.AppImage`) |
+| `npm run build:desktop:debug` | Desktop-Debug-Build (unsigniert, debugbar, ohne Code-Optimierung) |
 | `npm run build:windows` / `build:macos` / `build:linux` | Zielsystem explizit angeben; bei Abweichung sofortiger Fehler |
 | `npm run build:android` | Android-APK (standardmäßig arm64) |
 | `npm run build:android:all` | alle ABIs in einem Universalpaket |
@@ -160,7 +168,8 @@ dist-apk/       Android-Ergebnisse
 
 ## Hinweise
 
-- Beim ersten Schreiben unter Windows erscheint die UAC-Abfrage der Rechteerweiterung — das ist normal
+- Unter Windows wird die App beim Start automatisch zu Administratorrechten erhöht (UAC-Abfrage beim Start), damit die System-hosts-Datei geschrieben werden kann — das ist normal
+- Auf dem Desktop wird das Hauptfenster beim Schließen ins System-Tray versteckt, statt die App zu beenden — nutzen Sie das Tray-Menü (Fenster anzeigen / Beenden) oder Einstellungen → Beenden zum vollständigen Beenden; ein erneuter Start fokussiert das vorhandene Fenster (Einzelinstanz)
 - Der Überschreiben-Modus entfernt bestehende hosts-Einträge (einschließlich `localhost`); wer sie behalten will, nimmt sie in ein Profil auf. Versehen lassen sich über „Backup und Wiederherstellung“ korrigieren
 - Remote-Hosts sind auf 8MB begrenzt, der Abruf hat ein Zeitlimit von 15 Sekunden; der Inhalt muss einfacher hosts-Text sein (`IP Domain` pro Zeile), JSON wird nicht unterstützt
 - Unter Android muss beim ersten Einschalten eines Profils die VPN-Berechtigung erteilt werden; bei Ablehnung wird der Schalter zurückgesetzt und beim nächsten Einschalten erneut abgefragt

@@ -45,6 +45,12 @@ L'ordinateur modifie directement le fichier hosts système ; ce n'est pas possib
 - **Texte hosts** : export du texte hosts brut du profil courant, ou import d'un texte hosts comme nouveau profil
 - Export vers un fichier / import depuis un fichier
 
+### Diagnostics
+
+- Rapport de diagnostic en un clic, couvrant le serveur DNS local (statut, port d'écoute, nombre de domaines gérés, raison du dernier échec de démarrage, DNS amont, statistiques de requêtes), les mappings actuels, un auto-test en direct contre `127.0.0.1` et le rapport du tunnel VPN natif
+- Vérification de cohérence entre le port de relais du tunnel et le port d'écoute — la cause numéro un du phénomène « toutes les apps perdent le DNS mais l'accès IP fonctionne » sur mobile
+- Copie intégrale du rapport et effacement du journal ; le rapport est généré à la demande (pas d'état obsolète)
+
 ### Paramètres de l'application
 
 - **Langue de l'interface** : 简体中文、繁體中文、English、日本語、한국어、Deutsch、Français、Español、Português (Brasil) — 9 langues, changement immédiat
@@ -53,6 +59,7 @@ L'ordinateur modifie directement le fichier hosts système ; ce n'est pas possib
 - Mode d'écriture, proxy pour le téléchargement distant, actualisation automatique au démarrage
 - Informations sur la plateforme : système d'exploitation, ordinateur / mobile, chemin du fichier hosts (ouverture du dossier en un clic)
 - Répertoire de données personnalisé (déplaçable)
+- Panneau hosts système en lecture seule (ordinateur) : l'état replié / déplié et la hauteur déplacée sont conservés et restaurés au démarrage
 
 ## Stack technique
 
@@ -91,6 +98,7 @@ npm run build:all
 |---|---|
 | `npm run build:check` | Vérifier l'environnement de build (JDK / Android SDK / NDK / cible rustup), sans construire |
 | `npm run build:desktop` | Installateur pour le système courant (Windows `.exe` / `.msi`, macOS `.dmg`, Linux `.deb` / `.rpm` / `.AppImage`) |
+| `npm run build:desktop:debug` | Build de débogage pour ordinateur (non signé, débogable, sans optimisation du code) |
 | `npm run build:windows` / `build:macos` / `build:linux` | Système cible explicite ; erreur immédiate si incompatible |
 | `npm run build:android` | APK Android (arm64 par défaut) |
 | `npm run build:android:all` | toutes les ABI dans un paquet universel |
@@ -160,7 +168,8 @@ dist-apk/       Artefacts Android
 
 ## Remarques
 
-- La première écriture sous Windows affiche une demande d'élévation UAC — c'est normal
+- Sous Windows, l'application s'élève automatiquement aux privilèges administrateur au lancement (invite UAC au démarrage) afin de pouvoir écrire le fichier hosts système — c'est normal
+- Sur ordinateur, la fermeture de la fenêtre principale la masque dans la barre système au lieu de quitter — utilisez le menu de la barre (Afficher / Quitter) ou Paramètres → Quitter pour fermer complètement l'application ; un nouveau lancement recentre la fenêtre existante (instance unique)
 - Le mode remplacement supprime les entrées hosts existantes (y compris `localhost`) : conservez-les dans un profil si besoin. En cas d'erreur, restaurez depuis « Sauvegarde et restauration »
 - Les hosts distants sont limités à 8 Mo avec un délai de 15 secondes ; le contenu doit être du texte hosts standard (`IP domaine` par ligne), le JSON n'est pas pris en charge
 - Sous Android, la première activation d'un profil requiert l'autorisation VPN ; en cas de refus, l'interrupteur est réinitialisé et la demande sera représentée à la prochaine activation

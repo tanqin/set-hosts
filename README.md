@@ -45,6 +45,12 @@ Desktop rewrites the system hosts file directly; mobile cannot, so mappings take
 - **Hosts text**: export the current profile's raw hosts text, or import hosts text as a new profile
 - Export to file / import from file
 
+### Diagnostics
+
+- One-click diagnostic report covering the local DNS server (status, listen port, managed domains, last startup failure reason, upstream, query stats), the current mappings, a live self-test query against `127.0.0.1`, and the native VPN tunnel report
+- Tunnel-forward vs. listen-port consistency check — the top cause of "every app loses DNS but IPs work" on mobile
+- Copy-to-clipboard and clear-log buttons; the report is generated on demand (no stale state)
+
 ### App settings
 
 - **UI language**: 简体中文、繁體中文、English、日本語、한국어、Deutsch、Français、Español、Português (Brasil) — 9 languages, switching takes effect instantly
@@ -53,6 +59,7 @@ Desktop rewrites the system hosts file directly; mobile cannot, so mappings take
 - Write mode, proxy for remote hosts fetching, auto refresh on startup
 - Platform info: OS, desktop/mobile, hosts path (with one-click open of the containing folder)
 - Custom data directory (movable)
+- System hosts read-only panel (desktop): collapsed/expanded state and dragged height are persisted and restored on startup
 
 ## Tech stack
 
@@ -91,6 +98,7 @@ npm run build:all
 |---|---|
 | `npm run build:check` | Check the build environment (JDK / Android SDK / NDK / rustup target) without building |
 | `npm run build:desktop` | Desktop installer for the current OS (Windows `.exe` / `.msi`, macOS `.dmg`, Linux `.deb` / `.rpm` / `.AppImage`) |
+| `npm run build:desktop:debug` | Desktop debug build (unsigned, debuggable, no code optimization) |
 | `npm run build:windows` / `build:macos` / `build:linux` | Explicit target OS; fails fast if it does not match the host |
 | `npm run build:android` | Android APK (arm64 by default) |
 | `npm run build:android:all` | All ABIs in one universal package |
@@ -160,7 +168,8 @@ dist-apk/       Android artifacts
 
 ## Notes
 
-- The first write on Windows triggers a UAC prompt — this is expected
+- On Windows the app auto-elevates to administrator at launch (UAC prompt on startup) so it can write the system hosts file; this is expected
+- On desktop, closing the main window hides it to the system tray instead of quitting — use the tray menu (Show / Quit) or the Settings → Exit entry to fully quit; launching the app again focuses the existing window (single instance)
 - Overwrite mode removes existing hosts entries (including `localhost`); keep them inside a profile or restore from Backup & Restore
 - Remote hosts content is limited to 8MB with a 15-second timeout; it must be plain hosts text (`IP domain` per line), not JSON
 - On Android, enabling a profile for the first time requires granting the VPN consent; if denied the switch rolls back and consent is requested again next time

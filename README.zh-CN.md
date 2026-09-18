@@ -45,6 +45,12 @@
 - **Hosts 文本**：导出当前配置的原始 hosts 文本，或把 hosts 文本导入为一个新配置
 - 支持导出到文件、从文件导入
 
+### 诊断
+
+- 一键生成诊断报告，涵盖本地 DNS 服务器（运行状态、监听端口、管理域名数、上次启动失败原因、上游 DNS、查询统计）、当前映射表、对 `127.0.0.1` 的实时自测查询，以及原生 VPN 隧道报告
+- 隧道转发端口与监听端口一致性检查——这是移动端「所有应用都上不了网、直接访问 IP 却正常」的头号原因
+- 支持一键复制全部报告、清空日志；报告按需生成（无过期状态）
+
 ### 应用设置
 
 - **界面语言**：简体中文、繁體中文、English、日本語、한국어、Deutsch、Français、Español、Português (Brasil) —— 共 9 种，切换立即生效
@@ -53,6 +59,7 @@
 - 写入模式、远程 hosts 拉取代理、启动时自动刷新远程 hosts
 - 平台信息查看：操作系统、桌面 / 移动端、hosts 路径（可一键打开所在文件夹）
 - 自定义数据存储目录（可迁移）
+- 系统 Hosts 只读面板（桌面端）：折叠/展开状态与拖拽高度会持久化，启动时自动恢复
 
 ## 技术栈
 
@@ -91,6 +98,7 @@ npm run build:all
 |---|---|
 | `npm run build:check` | 体检打包环境（JDK / Android SDK / NDK / rustup target），不构建 |
 | `npm run build:desktop` | 当前系统桌面安装包（Windows `.exe` / `.msi`、macOS `.dmg`、Linux `.deb` / `.rpm` / `.AppImage`） |
+| `npm run build:desktop:debug` | 桌面端调试包（免签名、可调试、无代码优化） |
 | `npm run build:windows` / `build:macos` / `build:linux` | 显式指定系统；与本机不匹配时直接报错 |
 | `npm run build:android` | Android APK（默认 arm64） |
 | `npm run build:android:all` | 把全部 ABI 打进一个通用包 |
@@ -160,7 +168,8 @@ dist-apk/       Android 产物
 
 ## 注意事项
 
-- Windows 首次写入系统 hosts 会弹出 UAC 提权确认，属正常现象
+- Windows 下应用启动时会自动提权为管理员（启动时弹出 UAC），以便写入系统 hosts，属正常现象
+- 桌面端关闭主窗口会隐藏到系统托盘而非退出——请通过托盘菜单（显示 / 退出）或设置 → 退出彻底关闭；再次启动应用会唤起已有窗口（单实例）
 - 覆盖模式会移除系统原有 hosts 条目（含 `localhost`），如需保留请写入配置中；误操作可从「备份与还原」恢复
 - 远程 hosts 单次内容上限 8MB、拉取超时 15 秒；内容应为标准 hosts 格式纯文本（每行 `IP 域名`），不支持 JSON
 - Android 首次开启配置需授予 VPN 授权；拒绝后开关会自动回滚，再次开启会重新申请
