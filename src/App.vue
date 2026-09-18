@@ -12,6 +12,7 @@ import {
   Refresh,
   RefreshRight,
   Setting,
+  SwitchButton,
   Upload,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -227,6 +228,14 @@ async function requestExitApp() {
   } catch {
     // 非 Tauri 环境（纯浏览器调试）忽略
   }
+}
+
+/** 设置菜单「退出」点击：直接落盘并退出（桌面端 / 移动端通用，无二次确认） */
+async function handleExit() {
+  if (!isMobile.value) {
+    settingsMenuVisible.value = false
+  }
+  await requestExitApp()
 }
 
 /** Android 返回手势统一入口（返回事件总是被前端消费，不再直接退出应用） */
@@ -630,7 +639,12 @@ async function handleToggle(id: string) {
   loadSystemHosts()
 }
 
-function openDrawer(key: keyof typeof drawers.value) {
+function handleMenuClick(key: keyof typeof drawers.value | 'exit') {
+  // 退出项单独处理：确认后落盘未保存内容并退出应用（桌面端 / 移动端通用）
+  if (key === 'exit') {
+    handleExit()
+    return
+  }
   // 桌面端：点击菜单项时关闭设置菜单，仅展示子抽屉（保持原行为）
   // 移动端：设置菜单保持显示，el-drawer 默认 append-to-body 且 z-index 远高于
   //        设置菜单（z-index: 10），子抽屉会自然覆盖显示在其上层。
@@ -667,6 +681,11 @@ const menuGroups = computed(() => {
         { key: 'diagnostics' as const, label: t('app.menu.diagnostics'), icon: Document },
         { key: 'about' as const, label: t('app.menu.about'), icon: Setting },
       ],
+    },
+    // 退出单独成组（无标题），与其它抽屉项视觉分隔，避免误点
+    {
+      title: '',
+      items: [{ key: 'exit' as const, label: t('app.menu.exit'), icon: SwitchButton }],
     },
   ]
   // 移动端：备份/还原、导入/导出依赖系统 hosts 与桌面文件对话框，屏蔽入口
@@ -902,12 +921,12 @@ const menuGroups = computed(() => {
               <el-button text :icon="Close" @click="settingsMenuVisible = false" />
             </div>
             <div v-for="group in menuGroups" :key="group.title" class="menu-group">
-              <div class="menu-group-title">{{ group.title }}</div>
+              <div v-if="group.title" class="menu-group-title">{{ group.title }}</div>
               <div
                 v-for="item in group.items"
                 :key="item.key"
                 class="menu-item"
-                @click="openDrawer(item.key)"
+                @click="handleMenuClick(item.key)"
               >
                 <el-icon><component :is="item.icon" /></el-icon>
                 <span>{{ item.label }}</span>

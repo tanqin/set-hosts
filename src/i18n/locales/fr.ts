@@ -16,6 +16,7 @@ export default {
   'app.menu.options': 'Options',
   'app.menu.diagnostics': 'Diagnostic',
   'app.menu.about': 'À propos',
+  'app.menu.exit': 'Quitter',
   'app.addProfile': 'Ajouter des Hosts locaux',
   'app.profilePlaceholder': 'ex. : environnement de dev',
   'app.rename': 'Renommer',

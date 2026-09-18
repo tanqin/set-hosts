@@ -16,6 +16,7 @@ export default {
   'app.menu.options': '选项',
   'app.menu.diagnostics': '诊断日志',
   'app.menu.about': '关于',
+  'app.menu.exit': '退出',
   'app.addProfile': '添加本地 Hosts',
   'app.profilePlaceholder': '如：开发环境',
   'app.rename': '重命名',

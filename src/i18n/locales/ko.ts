@@ -16,6 +16,7 @@ export default {
   'app.menu.options': '옵션',
   'app.menu.diagnostics': '진단 로그',
   'app.menu.about': '정보',
+  'app.menu.exit': '종료',
   'app.addProfile': '로컬 Hosts 추가',
   'app.profilePlaceholder': '예: 개발 환경',
   'app.rename': '이름 변경',

@@ -16,6 +16,7 @@ export default {
   'app.menu.options': 'オプション',
   'app.menu.diagnostics': '診断ログ',
   'app.menu.about': 'について',
+  'app.menu.exit': '終了',
   'app.addProfile': 'ローカル Hosts を追加',
   'app.profilePlaceholder': '例：開発環境',
   'app.rename': '名前を変更',

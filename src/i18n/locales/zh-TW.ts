@@ -16,6 +16,7 @@ export default {
   'app.menu.options': '選項',
   'app.menu.diagnostics': '診斷記錄',
   'app.menu.about': '關於',
+  'app.menu.exit': '退出',
   'app.addProfile': '新增本機 Hosts',
   'app.profilePlaceholder': '如：開發環境',
   'app.rename': '重新命名',
