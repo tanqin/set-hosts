@@ -152,6 +152,7 @@ export default {
   'about.version': 'バージョン',
   'about.techstack': '技術スタック',
   'about.platforms': '対応プラットフォーム',
+  'about.github': 'GitHub',
   'about.desktop': 'デスクトップ：システム hosts ファイルを直接編集',
   'about.mobile':
     'モバイル：システム hosts ファイルは書き換えできないため、プロファイルを有効化するときに一度だけシステムの VPN 許可を求め、その後は自動的に適用されます — root や脱獄は不要',

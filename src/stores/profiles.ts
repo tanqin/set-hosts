@@ -174,6 +174,9 @@ export const useProfilesStore = defineStore('profiles', () => {
    * 移动端没有 hosts 写入能力，映射靠「内置 DNS 服务器 + VPN 隧道」生效，因此
    * 从「全部关闭」切到「打开」时会申请一次系统 VPN 授权：授权成功即永久记住，
    * 之后不再打扰；被拒绝则回滚这次打开（[`handleVpnConsentResult`]）。
+   *
+   * 提示时机：需要授权时不立即弹「已启用」，等授权结果回来再决定——
+   * 通过才提示，用户取消 / 拒绝则什么都不弹（此时开关会被静默回滚）。
    */
   async function toggle(id: string) {
     const p = profiles.value.find((x) => x.id === id)
@@ -187,6 +190,11 @@ export const useProfilesStore = defineStore('profiles', () => {
     try {
       await toggleProfile(id)
       p.enabled = willEnable
+      if (needsConsent) {
+        // 需要系统 VPN 授权时先不弹提示：授权结果由 handleVpnConsentResult 决定——
+        // 通过才提示「已启用」，用户取消 / 拒绝则静默回滚，什么都不弹
+        return
+      }
       // 用本地化文案替代后端返回的中文字符串，保证语言切换后提示一致
       ElMessage.success(willEnable ? t('profiles.enabled') : t('profiles.disabled'))
     } catch (e: any) {
@@ -200,12 +208,21 @@ export const useProfilesStore = defineStore('profiles', () => {
    *
    * 拒绝时把刚打开的开关回滚：映射实际没生效，开关就不该停在「已启用」；
    * 回滚后用户再次从关切到开，会重新弹出授权弹窗。
+   *
+   * 已授权过的情况下系统不弹窗，原生层会主动补发一次 granted=true（见
+   * `DnsVpn.start`），因此这里总能收到结果。
    */
   async function handleVpnConsentResult(granted: boolean) {
     const id = pendingConsentId
     pendingConsentId = null
-    if (granted || !id) return
+    if (!id) return
     const p = profiles.value.find((x) => x.id === id)
+    if (granted) {
+      // 授权通过：映射确实生效了，补上开启时延迟显示的提示
+      if (p?.enabled) ElMessage.success(t('profiles.enabled'))
+      return
+    }
+    // 用户取消 / 拒绝：开关回滚，且不弹任何提示（成功提示此前就没弹）
     if (!p?.enabled) return
     try {
       await toggleProfile(id)

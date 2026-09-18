@@ -152,6 +152,7 @@ export default {
   'about.version': 'Versión',
   'about.techstack': 'Stack tecnológico',
   'about.platforms': 'Plataformas',
+  'about.github': 'GitHub',
   'about.desktop': 'Escritorio: edita directamente el archivo Hosts del sistema',
   'about.mobile':
     'Móvil: el archivo Hosts del sistema no se puede modificar; al activar un perfil se solicita una vez el permiso VPN del sistema y luego se aplica automáticamente — sin root/jailbreak',

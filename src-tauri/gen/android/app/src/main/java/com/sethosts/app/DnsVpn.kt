@@ -52,9 +52,14 @@ object DnsVpn {
         null
       }
       if (consent != null) {
+        // 首次（或用户曾拒绝后再次主动开启）：由系统弹窗询问，结果经
+        // MainActivity.onActivityResult → nativeOnConsentResult 回传
         activity.startActivityForResult(consent, REQUEST_VPN)
       } else {
         startService(activity, port)
+        // 系统此前已授权：不会弹窗，也就不会有 onActivityResult 回调。
+        // 主动回传一次「已授权」，否则前端会一直等授权结果，成功提示永远补不上。
+        runCatching { nativeOnConsentResult(true) }
       }
     }
   }
