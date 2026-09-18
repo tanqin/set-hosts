@@ -156,6 +156,8 @@ const highlighted = computed(() => {
   position: relative;
   flex: 1;
   overflow: hidden;
+  /* 右侧与滚动条/窗口边缘保留一点呼吸间隙 */
+  margin-right: 8px;
 }
 
 .highlight,
