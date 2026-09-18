@@ -2,7 +2,7 @@
 name = "set-hosts"
 version = "0.1.2"
 description = "跨平台 Hosts 配置工具"
-authors = ["set-hosts"]
+authors = ["Set Hosts"]
 edition = "2021"
 
 [lib]

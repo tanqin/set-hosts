@@ -20,6 +20,7 @@ import {
   ROOT,
   abort,
   collectNewFiles,
+  normalizeArtifactName,
   isLinux,
   isMac,
   isWindows,
@@ -126,9 +127,14 @@ if (files.length === 0) {
 const outDir = path.resolve(ROOT, options.out);
 const artifacts = [];
 for (const file of files) {
-  // 安装包文件名里已经带了产品名与版本号，保持原样最不容易混淆
-  artifacts.push(publish(file, outDir, path.basename(file)));
-  log(`${path.basename(file)} → ${options.out}/${path.basename(file)}`);
+  // Tauri 各平台的原始命名规则不一致（Linux 还是小写的 set-hosts_*），
+  // 统一重写为 `Set Hosts_<版本>_<架构/变体>.<扩展名>`
+  const name = normalizeArtifactName(path.basename(file), {
+    product: config.productName,
+    version: config.version,
+  });
+  artifacts.push(publish(file, outDir, name));
+  log(`${path.basename(file)} → ${options.out}/${name}`);
 }
 
 printArtifacts(`桌面端产物（v${config.version}）：`, artifacts);

@@ -34,7 +34,7 @@ const exportExtensions = computed(() =>
 async function handleExport() {
   const path = await save({
     title: t('io.exportToFile'),
-    defaultPath: exportFormat.value === 'json' ? 'set-hosts.json' : 'set-hosts-hosts.txt',
+    defaultPath: exportFormat.value === 'json' ? 'Set Hosts.json' : 'Set Hosts-hosts.txt',
     filters: [{ name: filterName.value, extensions: exportExtensions.value }],
   })
   if (!path) return

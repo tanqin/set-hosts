@@ -114,12 +114,13 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     ensure_admin();
 
-    // Android: 把 log crate 接到 logcat，真机排查用 `adb logcat -s set-hosts`
+    // Android: 把 log crate 接到 logcat，真机排查用 `adb logcat -s SetHosts`
     #[cfg(target_os = "android")]
     android_logger::init_once(
         android_logger::Config::default()
             .with_max_level(log::LevelFilter::Info)
-            .with_tag("set-hosts"),
+            // logcat 的 tag 不能有空格（且长度上限 23），用去掉空格的 SetHosts
+            .with_tag("SetHosts"),
     );
 
     let builder = tauri::Builder::default();

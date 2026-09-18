@@ -13,7 +13,9 @@
  *   npm run build:android -- --java-home "C:/Program Files/Android/Android Studio/jbr"
  *   npm run build:android -- --sdk "D:/Software/Android/Sdk"
  *
- * 产物统一收集到 dist-apk/（可用 --out 改目录）。
+ * 产物统一收集到 dist-apk/（可用 --out 改目录），命名规则 `Set Hosts_<版本>_<片段>.<扩展名>`：
+ *   Set Hosts_0.1.2_arm64_release.apk
+ *   Set Hosts_0.1.2_universal_release.aab
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,6 +30,7 @@ import {
   findJavaHome,
   findNdk,
   log,
+  buildArtifactName,
   printArtifacts,
   publish,
   readTauriConfig,
@@ -254,7 +257,13 @@ const artifacts = [];
 
 for (const file of files) {
   const label = artifactLabel(file, { singleTarget, targets: options.targets });
-  const name = `set-hosts-${label}-${variant}.${options.bundle}`;
+  // 统一命名：Set Hosts_<版本>_<abi>_<release|debug>.apk|aab
+  const name = buildArtifactName({
+    product: config.productName,
+    version: config.version,
+    segments: [label, variant],
+    ext: options.bundle,
+  });
   artifacts.push(publish(file, outDir, name));
   log(`${path.basename(file)} → ${options.out}/${name}`);
 }

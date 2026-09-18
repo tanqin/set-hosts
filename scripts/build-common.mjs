@@ -214,9 +214,80 @@ export function collectNewFiles(dir, extensions, since) {
   return found;
 }
 
+/** 正则转义：产品名里可能有空格等字符 */
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** 多段扩展名（Tauri 的 macOS .app.tar.gz），需优先于单点扩展名识别 */
+const MULTI_PART_EXTENSIONS = ['app.tar.gz'];
+
+/** 标准语言标签（en-US / zh-CN 等）：连字符是标签的一部分，不能替换成下划线 */
+const LOCALE_TAG = /^[a-z]{2}-[A-Z]{2}$/;
+
+/**
+ * 统一产物命名：<产品名>_<版本>[_<片段>…].<扩展名>
+ *
+ * 例：`Set Hosts_0.1.2_x64_setup.exe`、`Set Hosts_0.1.2_arm64_release.apk`
+ */
+export function buildArtifactName({ product, version, segments = [], ext }) {
+  // 语言标签（en-US）保留连字符，其余片段统一用下划线
+  const tail = segments
+    .filter(Boolean)
+    .map((seg) => (LOCALE_TAG.test(seg) ? seg : String(seg).replace(/[-\s]+/g, '_')))
+    .join('_');
+  const name = tail ? `${product}_${version}_${tail}` : `${product}_${version}`;
+  return ext ? `${name}.${ext}` : name;
+}
+
+/**
+ * 把 Tauri 原始产物名重写为统一命名。
+ *
+ * 各平台原始规则并不一致（Windows `产品_版本_x64-setup.exe`、Linux deb `set-hosts_版本_amd64.deb`、
+ * rpm `set-hosts-版本-1.x86_64.rpm`），这里统一成 `<产品名>_<版本>_<架构/变体>.<扩展名>`。
+ */
+export function normalizeArtifactName(originalName, { product, version }) {
+  const lower = originalName.toLowerCase();
+
+  // 先识别多段扩展名，再退回最后一段
+  let ext = '';
+  let stem = originalName;
+  for (const multi of MULTI_PART_EXTENSIONS) {
+    if (lower.endsWith(`.${multi}`)) {
+      ext = multi;
+      stem = originalName.slice(0, -(multi.length + 1));
+      break;
+    }
+  }
+  if (!ext) {
+    const dot = stem.lastIndexOf('.');
+    if (dot > 0) {
+      ext = stem.slice(dot + 1);
+      stem = stem.slice(0, dot);
+    }
+  }
+
+  // 去掉产品名（含 deb/rpm 里的小写 set-hosts 形式）与版本号，剩下的就是架构 / 变体片段
+  const productVariants = [product, product.replace(/\s+/g, '-')];
+  let tail = stem;
+  for (const variant of productVariants) {
+    tail = tail.replace(new RegExp(escapeRegExp(variant), 'gi'), '');
+  }
+  tail = tail.split(version).join('');
+
+  tail = tail
+    .split('_')
+    // 语言标签保留标准写法（en-US / zh-CN），其余片段的连字符 / 点号统一为下划线
+    .map((seg) => (LOCALE_TAG.test(seg) ? seg : seg.replace(/[-.\s]+/g, '_')))
+    .join('_')
+    .replace(/^_+|_+$/g, '') // 去掉首尾多余分隔符
+    .replace(/_{2,}/g, '_')
+    .replace(/^\d+_/, ''); // rpm 的 release 号（set-hosts-0.1.2-1.x86_64.rpm）
+
+  // 按片段传，让语言标签在 buildArtifactName 里也能被识别保留
+  return buildArtifactName({ product, version, segments: tail.split('_'), ext });
+}
+
 /** 复制产物到发布目录（同名文件直接覆盖），返回目标路径 */
-export function publish(from, outDir, name) {
-  fs.mkdirSync(outDir, { recursive: true });
+export function publish(from, outDir, name) {  fs.mkdirSync(outDir, { recursive: true });
   const to = path.join(outDir, name);
   fs.copyFileSync(from, to);
   // copyFileSync 沿用源文件的修改时间；产物没被重新打包时源文件是旧的

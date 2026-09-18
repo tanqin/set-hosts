@@ -12,6 +12,7 @@ import path from 'node:path';
 import {
   ROOT,
   abort,
+  buildArtifactName,
   collectNewFiles,
   isMac,
   log,
@@ -53,8 +54,15 @@ if (files.length === 0) {
 
 const artifacts = [];
 for (const file of files) {
-  artifacts.push(publish(file, path.join(ROOT, 'dist-ios'), path.basename(file)));
-  log(`${path.basename(file)} → dist-ios/${path.basename(file)}`);
+  // 统一命名：Set Hosts_<版本>_ios.ipa
+  const name = buildArtifactName({
+    product: config.productName,
+    version: config.version,
+    segments: ['ios'],
+    ext: 'ipa',
+  });
+  artifacts.push(publish(file, path.join(ROOT, 'dist-ios'), name));
+  log(`${path.basename(file)} → dist-ios/${name}`);
 }
 
 printArtifacts(`iOS 产物（v${config.version}）：`, artifacts);
