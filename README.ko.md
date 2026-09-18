@@ -165,3 +165,7 @@ dist-apk/       Android 결과물
 - 원격 hosts는 8MB 제한, 15초 타임아웃. 내용은 표준 hosts 형식의 일반 텍스트(한 줄에 `IP 도메인`)여야 하며 JSON은 지원하지 않습니다
 - Android에서 처음 프로필을 켤 때는 VPN 권한 허용이 필요합니다. 거부하면 스위치가 자동으로 되돌아가고 다음에 켤 때 다시 요청합니다
 - DNS 프록시의 상위 질의 타임아웃은 4초이며 실패 시 `SERVFAIL`을 반환합니다
+
+## 라이선스
+
+[Apache License 2.0](LICENSE) © 2026 tanqin

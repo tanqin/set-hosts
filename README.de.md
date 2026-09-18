@@ -165,3 +165,7 @@ dist-apk/       Android-Ergebnisse
 - Remote-Hosts sind auf 8MB begrenzt, der Abruf hat ein Zeitlimit von 15 Sekunden; der Inhalt muss einfacher hosts-Text sein (`IP Domain` pro Zeile), JSON wird nicht unterstützt
 - Unter Android muss beim ersten Einschalten eines Profils die VPN-Berechtigung erteilt werden; bei Ablehnung wird der Schalter zurückgesetzt und beim nächsten Einschalten erneut abgefragt
 - Das Zeitlimit für Upstream-Anfragen des DNS-Proxys beträgt 4 Sekunden; bei Fehlern wird `SERVFAIL` zurückgegeben
+
+## Lizenz
+
+[Apache License 2.0](LICENSE) © 2026 tanqin

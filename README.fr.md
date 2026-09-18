@@ -165,3 +165,7 @@ dist-apk/       Artefacts Android
 - Les hosts distants sont limités à 8 Mo avec un délai de 15 secondes ; le contenu doit être du texte hosts standard (`IP domaine` par ligne), le JSON n'est pas pris en charge
 - Sous Android, la première activation d'un profil requiert l'autorisation VPN ; en cas de refus, l'interrupteur est réinitialisé et la demande sera représentée à la prochaine activation
 - Le délai d'une requête en amont du proxy DNS est de 4 secondes ; en cas d'échec, `SERVFAIL` est renvoyé
+
+## Licence
+
+[Apache License 2.0](LICENSE) © 2026 tanqin

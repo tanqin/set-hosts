@@ -165,3 +165,7 @@ dist-apk/       Artefatos Android
 - Os hosts remotos são limitados a 8 MB com tempo limite de 15 segundos; o conteúdo deve ser texto hosts padrão (`IP domínio` por linha); não há suporte a JSON
 - No Android, a primeira ativação de um perfil exige conceder a autorização de VPN; se recusada, o interruptor é revertido e a solicitação será feita novamente na próxima vez
 - O tempo limite de uma consulta ao upstream do proxy DNS é de 4 segundos; em caso de falha, retorna `SERVFAIL`
+
+## Licença
+
+[Apache License 2.0](LICENSE) © 2026 tanqin

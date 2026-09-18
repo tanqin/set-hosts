@@ -165,3 +165,7 @@ dist-apk/       Artefactos de Android
 - Los hosts remotos están limitados a 8 MB con un tiempo de espera de 15 segundos; el contenido debe ser texto hosts estándar (`IP dominio` por línea); no se admite JSON
 - En Android, la primera activación de un perfil requiere conceder la autorización VPN; si se rechaza, el interruptor se revierte y se volverá a solicitar la próxima vez
 - El tiempo de espera de una consulta al servidor ascendente del proxy DNS es de 4 segundos; en caso de fallo se devuelve `SERVFAIL`
+
+## Licencia
+
+[Apache License 2.0](LICENSE) © 2026 tanqin

@@ -165,3 +165,7 @@ dist-apk/       Android artifacts
 - Remote hosts content is limited to 8MB with a 15-second timeout; it must be plain hosts text (`IP domain` per line), not JSON
 - On Android, enabling a profile for the first time requires granting the VPN consent; if denied the switch rolls back and consent is requested again next time
 - The upstream DNS query timeout is 4 seconds; failures return `SERVFAIL`
+
+## License
+
+[Apache License 2.0](LICENSE) © 2026 tanqin

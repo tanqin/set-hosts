@@ -165,3 +165,7 @@ dist-apk/       Android 产物
 - 远程 hosts 单次内容上限 8MB、拉取超时 15 秒；内容应为标准 hosts 格式纯文本（每行 `IP 域名`），不支持 JSON
 - Android 首次开启配置需授予 VPN 授权；拒绝后开关会自动回滚，再次开启会重新申请
 - DNS 代理上游单次查询超时 4 秒，失败返回 `SERVFAIL`
+
+## 许可证
+
+[Apache License 2.0](LICENSE) © 2026 tanqin
